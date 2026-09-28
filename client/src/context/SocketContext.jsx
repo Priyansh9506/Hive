@@ -9,15 +9,20 @@ export function useSocket() {
 }
 
 export function SocketProvider({ children }) {
-  const { token, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [socket, setSocket] = useState(null);
 
   useEffect(() => {
+    const token = localStorage.getItem('token');
+
     if (isAuthenticated && token) {
-      const newSocket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000', {
-        auth: { token },
-        transports: ['websocket'],
-      });
+      const newSocket = io(
+        (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace('/api', ''),
+        {
+          auth: { token },
+          transports: ['websocket'],
+        }
+      );
 
       newSocket.on('connect', () => {
         console.log('Socket connected:', newSocket.id);
@@ -32,8 +37,11 @@ export function SocketProvider({ children }) {
       return () => {
         newSocket.disconnect();
       };
+    } else {
+      // Disconnect if logged out
+      setSocket(null);
     }
-  }, [isAuthenticated, token]);
+  }, [isAuthenticated]);
 
   return (
     <SocketContext.Provider value={socket}>

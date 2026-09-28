@@ -1,77 +1,59 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
 import toast from 'react-hot-toast';
-import { Book, Code, FlaskConical, Calculator, PenLine, Globe, Lightbulb, Music, Palette, Rocket, Brain, GraduationCap } from 'lucide-react';
+import { ICON_OPTIONS, COLOR_OPTIONS } from './CreateSpaceModal';
 import api from '../../lib/api';
 
-const ICON_OPTIONS = [
-  { value: 'book', icon: Book },
-  { value: 'code', icon: Code },
-  { value: 'flask', icon: FlaskConical },
-  { value: 'calculator', icon: Calculator },
-  { value: 'pen', icon: PenLine },
-  { value: 'globe', icon: Globe },
-  { value: 'lightbulb', icon: Lightbulb },
-  { value: 'music', icon: Music },
-  { value: 'palette', icon: Palette },
-  { value: 'rocket', icon: Rocket },
-  { value: 'brain', icon: Brain },
-  { value: 'graduation', icon: GraduationCap },
-];
-
-const COLOR_OPTIONS = [
-  '#6366f1', // indigo
-  '#8b5cf6', // violet
-  '#ec4899', // pink
-  '#ef4444', // red
-  '#f97316', // orange
-  '#eab308', // yellow
-  '#22c55e', // green
-  '#14b8a6', // teal
-  '#06b6d4', // cyan
-  '#3b82f6', // blue
-  '#6b7280', // gray
-  '#1e293b', // slate
-];
-
-export function CreateSpaceModal({ isOpen, onClose, onCreate }) {
+export function EditSpaceModal({ isOpen, onClose, space, onUpdate }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [icon, setIcon] = useState('book');
   const [color, setColor] = useState('#6366f1');
   const [loading, setLoading] = useState(false);
 
+  // Sync form with the space prop when it changes
+  useEffect(() => {
+    if (space) {
+      setName(space.name || '');
+      setDescription(space.description || '');
+      setIcon(space.icon || 'book');
+      setColor(space.color || '#6366f1');
+    }
+  }, [space]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim()) return;
-    
+
     setLoading(true);
     try {
-      const response = await api.post('/spaces', { name, description, icon, color });
-      onCreate(response.data.space);
-      toast.success('Study space created!');
+      const spaceId = space._id || space.id;
+      const response = await api.patch(`/spaces/${spaceId}`, {
+        name,
+        description,
+        icon,
+        color,
+      });
+      onUpdate(response.data.space);
+      toast.success('Space updated!');
       onClose();
-      setName('');
-      setDescription('');
-      setIcon('book');
-      setColor('#6366f1');
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to create space');
+      toast.error(error.response?.data?.message || 'Failed to update space');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Create Study Space">
+    <Modal isOpen={isOpen} onClose={onClose} title="Edit Study Space">
       <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
-          <Label htmlFor="spaceName">Space Name</Label>
+          <Label htmlFor="editSpaceName">Space Name</Label>
           <Input
-            id="spaceName"
+            id="editSpaceName"
             placeholder="e.g., CS101 Study Group"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -80,9 +62,9 @@ export function CreateSpaceModal({ isOpen, onClose, onCreate }) {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="spaceDescription">Description (Optional)</Label>
+          <Label htmlFor="editSpaceDescription">Description</Label>
           <Input
-            id="spaceDescription"
+            id="editSpaceDescription"
             placeholder="What is this space for?"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -134,12 +116,10 @@ export function CreateSpaceModal({ isOpen, onClose, onCreate }) {
             Cancel
           </Button>
           <Button type="submit" disabled={loading}>
-            {loading ? 'Creating...' : 'Create Space'}
+            {loading ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>
       </form>
     </Modal>
   );
 }
-
-export { ICON_OPTIONS, COLOR_OPTIONS };

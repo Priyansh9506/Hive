@@ -23,6 +23,16 @@ const studySpaceSchema = new mongoose.Schema(
       unique: true,
       required: true,
     },
+    icon: {
+      type: String,
+      enum: ['book', 'code', 'flask', 'calculator', 'pen', 'globe', 'lightbulb', 'music', 'palette', 'rocket', 'brain', 'graduation'],
+      default: 'book',
+    },
+    color: {
+      type: String,
+      match: [/^#([A-Fa-f0-9]{6})$/, 'Please provide a valid hex color'],
+      default: '#6366f1', // indigo
+    },
     inviteEnabled: {
       type: Boolean,
       default: true,

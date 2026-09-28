@@ -1,5 +1,6 @@
 const StudySpace = require('../models/StudySpace');
 const Membership = require('../models/Membership');
+const Message = require('../models/Message');
 const { nanoid } = require('nanoid');
 
 // @desc    Create a new study space
@@ -7,7 +8,7 @@ const { nanoid } = require('nanoid');
 // @access  Private
 const createSpace = async (req, res, next) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, icon, color } = req.body;
 
     // Generate a unique 7-character join code (e.g. 7KQ-9PM)
     const rawCode = nanoid(6).toUpperCase();
@@ -19,6 +20,8 @@ const createSpace = async (req, res, next) => {
       description,
       ownerId: req.user.id,
       joinCode,
+      icon: icon || 'book',
+      color: color || '#6366f1',
     });
 
     // Add creator as the owner in memberships
@@ -54,7 +57,6 @@ const getSpaces = async (req, res, next) => {
     const spaces = [];
 
     // For each space, get the total member count
-    // (In a huge production app, we would use an aggregation pipeline for this)
     for (const membership of memberships) {
       if (membership.spaceId) {
         const membersCount = await Membership.countDocuments({ spaceId: membership.spaceId._id });
@@ -155,9 +157,87 @@ const getSpace = async (req, res, next) => {
   }
 };
 
+// @desc    Update a study space (name, description, icon, color)
+// @route   PATCH /api/spaces/:id
+// @access  Private (Owner only)
+const updateSpace = async (req, res, next) => {
+  try {
+    // Check ownership
+    const membership = await Membership.findOne({ spaceId: req.params.id, userId: req.user.id });
+    if (!membership || membership.role !== 'owner') {
+      return res.status(403).json({ success: false, message: 'Only the space owner can update settings' });
+    }
+
+    const allowedFields = ['name', 'description', 'icon', 'color', 'inviteEnabled'];
+    const updates = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ success: false, message: 'No valid fields to update' });
+    }
+
+    const space = await StudySpace.findByIdAndUpdate(req.params.id, updates, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!space) {
+      return res.status(404).json({ success: false, message: 'Space not found' });
+    }
+
+    const membersCount = await Membership.countDocuments({ spaceId: space._id });
+    const spaceData = space.toObject();
+    spaceData.membersCount = membersCount;
+    spaceData.userRole = 'owner';
+
+    res.status(200).json({
+      success: true,
+      space: spaceData,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete a study space and all related data
+// @route   DELETE /api/spaces/:id
+// @access  Private (Owner only)
+const deleteSpace = async (req, res, next) => {
+  try {
+    // Check ownership
+    const membership = await Membership.findOne({ spaceId: req.params.id, userId: req.user.id });
+    if (!membership || membership.role !== 'owner') {
+      return res.status(403).json({ success: false, message: 'Only the space owner can delete this space' });
+    }
+
+    const space = await StudySpace.findById(req.params.id);
+    if (!space) {
+      return res.status(404).json({ success: false, message: 'Space not found' });
+    }
+
+    // Delete all related data (messages, memberships, then the space itself)
+    await Message.deleteMany({ spaceId: space._id });
+    await Membership.deleteMany({ spaceId: space._id });
+    await StudySpace.findByIdAndDelete(space._id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Study space and all related data deleted successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createSpace,
   getSpaces,
   joinSpace,
-  getSpace
+  getSpace,
+  updateSpace,
+  deleteSpace,
 };

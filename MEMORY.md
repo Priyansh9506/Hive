@@ -80,8 +80,8 @@
 | 2 | `POST /api/spaces` — Create space | ✅ | Handled by `createSpace` controller |
 | 3 | `GET /api/spaces` — List user's spaces | ✅ | Handled by `getSpaces` controller |
 | 4 | `GET /api/spaces/:spaceId` — Get space details | ✅ | Handled by `getSpace` controller |
-| 5 | `PATCH /api/spaces/:spaceId` — Update space | ❌ | — |
-| 6 | `DELETE /api/spaces/:spaceId` — Delete/archive | ❌ | — |
+| 5 | `PATCH /api/spaces/:spaceId` — Update space | ✅ | Edit icon, color, description |
+| 6 | `DELETE /api/spaces/:spaceId` — Delete/archive | ✅ | Cascades delete to memberships & messages |
 | 7 | `POST /api/spaces/:spaceId/leave` — Leave space | ❌ | — |
 | 8 | Member list | ❌ | — |
 | 9 | Dashboard UI | ✅ | `DashboardPage.jsx` with Create/Join Modals implemented |
@@ -134,15 +134,15 @@
 
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
-| 1 | Message model | ❌ | No `models/Message.js` |
-| 2 | `GET /api/spaces/:spaceId/messages` | ❌ | — |
-| 3 | `POST /api/spaces/:spaceId/messages` | ❌ | — |
+| 1 | Message model | ✅ | `models/Message.js` with `clientId` for deduplication |
+| 2 | `GET /api/spaces/:spaceId/messages` | ✅ | Cursor-based pagination (`before` param) |
+| 3 | `POST /api/spaces/:spaceId/messages` | ✅ | Handled via Socket.IO for speed with MongoDB persistence |
 | 4 | `PATCH /api/messages/:messageId` | ❌ | — |
 | 5 | `DELETE /api/messages/:messageId` | ❌ | — |
-| 6 | Real-time message delivery (Socket.IO) | ❌ | — |
-| 7 | Typing indicator | ❌ | — |
+| 6 | Real-time message delivery (Socket.IO) | ✅ | Broadcasts to room, optimistic sender reconciliation |
+| 7 | Typing indicator | ✅ | `typing_start` / `typing_stop` sockets |
 | 8 | Unread indicator | ❌ | — |
-| 9 | Chat UI | ❌ | — |
+| 9 | Chat UI | ✅ | `ChatPanel.jsx` with optimistic loading, auto-scroll |
 
 ---
 
@@ -266,11 +266,11 @@
 | Foundation & Config | 7 | 0 | 1 | 8 |
 | Authentication (Backend) | 6 | 0 | 5 | 11 |
 | Authentication (Frontend) | 10 | 0 | 0 | 10 |
-| Study Spaces | 0 | 0 | 9 | 9 |
+| Study Spaces | 6 | 0 | 3 | 9 |
 | Membership & RBAC | 0 | 0 | 3 | 3 |
 | Invites | 0 | 0 | 8 | 8 |
 | Real-Time Collab | 0 | 0 | 10 | 10 |
-| Chat / Discussion | 0 | 0 | 9 | 9 |
+| Chat / Discussion | 6 | 0 | 3 | 9 |
 | Resources | 0 | 0 | 7 | 7 |
 | Pins & Highlights | 0 | 0 | 7 | 7 |
 | Activity Feed | 0 | 0 | 2 | 2 |
@@ -281,9 +281,9 @@
 | Deployment | 0 | 0 | 5 | 5 |
 | Gemini (Phase 2) | 0 | 0 | 5 | 5 |
 | Testing | 0 | 0 | 3 | 3 |
-| **TOTAL** | **28** | **1** | **82** | **111** |
+| **TOTAL** | **40** | **1** | **70** | **111** |
 
-> **Overall Progress: ~25% of MVP requirements implemented (Sprint 1 foundation + auth backend & frontend).**
+> **Overall Progress: ~36% of MVP requirements implemented (Sprint 3 in progress).**
 
 ---
 

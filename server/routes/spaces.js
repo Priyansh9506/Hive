@@ -3,8 +3,11 @@ const {
   createSpace,
   getSpaces,
   joinSpace,
-  getSpace
+  getSpace,
+  updateSpace,
+  deleteSpace,
 } = require('../controllers/spaceController');
+const { getMessages } = require('../controllers/messageController');
 const { protect } = require('../middleware/auth');
 const { apiLimiter } = require('../middleware/rateLimiter');
 
@@ -21,6 +24,11 @@ router.route('/')
 router.post('/join', joinSpace);
 
 router.route('/:id')
-  .get(getSpace);
+  .get(getSpace)
+  .patch(updateSpace)
+  .delete(deleteSpace);
+
+// Nested message routes
+router.get('/:spaceId/messages', getMessages);
 
 module.exports = router;

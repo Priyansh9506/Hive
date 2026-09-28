@@ -1073,12 +1073,12 @@ gantt
     Workspace page + Quill editor        :done, s2g, after s2f, 3d
 
     section Sprint 3 — Real-Time Layer
-    Presence tracking (online members)   :active, s3a, after s2g, 3d
-    Real-time chat & persistence         :s3b, after s3a, 5d
-    Typing indicators                    :s3c, after s3b, 2d
+    Presence tracking (online members)   :done, s3a, after s2g, 3d
+    Real-time chat & persistence         :done, s3b, after s3a, 5d
+    Typing indicators                    :done, s3c, after s3b, 2d
 
     section Sprint 4 — Editor Polish
-    Document persistence & snapshots     :s4a, after s3c, 4d
+    Document persistence & snapshots     :active, s4a, after s3c, 4d
     Version history & rollback           :s4b, after s4a, 3d
 
     section Sprint 5 — Knowledge Layer
