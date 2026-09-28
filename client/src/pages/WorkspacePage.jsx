@@ -102,7 +102,7 @@ export default function WorkspacePage() {
         {/* Center Content — Notes or Chat on mobile */}
         <div className="flex-1 p-2 sm:p-4 md:p-6 overflow-hidden flex flex-col">
           {activeTab === 'notes' ? (
-            <CollaborativeEditor spaceId={spaceId} />
+            <CollaborativeEditor spaceId={spaceId} initialNotes={space.notesContent || ''} />
           ) : (
             <div className="md:hidden h-full">
               <ChatPanel spaceId={spaceId} />

@@ -1,6 +1,6 @@
 # StudySync — Implementation Memory
 
-> **Last Updated:** 2026-09-24  
+> **Last Updated:** 2026-09-28  
 > **Purpose:** Track what has been built vs. what remains from the [PRD](./StudySync_PRD.md).
 
 ---
@@ -37,14 +37,17 @@
 | 1 | `POST /api/auth/register` | ✅ | bcryptjs (salt 12), JWT response |
 | 2 | `POST /api/auth/login` | ✅ | Credential validation, JWT response |
 | 3 | `GET /api/auth/me` | ✅ | Protected route, returns user profile |
-| 4 | `POST /api/auth/logout` | ❌ | Route not implemented (PRD §35 lists it) |
+| 4 | `POST /api/auth/logout` | ✅ | Endpoint implemented (client-side token removal + server placeholder) |
 | 5 | JWT-based auth | ✅ | `utils/generateToken.js`, 7d expiry |
 | 6 | Password hashing | ✅ | bcryptjs with salt rounds = 12 |
 | 7 | Protected REST APIs | ✅ | `middleware/auth.js` — Bearer token extraction + verification |
-| 8 | Auth during WebSocket handshake | ❌ | No Socket.IO setup yet |
+| 8 | Auth during WebSocket handshake | ✅ | Socket.IO auth middleware in `config/socket.js` verifies JWT |
 | 9 | Google OAuth (future) | ❌ | — |
 | 10 | University email verification (future) | ❌ | — |
 | 11 | Profile image (future) | ❌ | — |
+| 12 | `PATCH /api/auth/profile` — Update name | ✅ | `authController.updateProfile` |
+| 13 | `PATCH /api/auth/password` — Change password | ✅ | `authController.changePassword`, re-issues JWT |
+| 14 | Profile page (UI) | ✅ | `ProfilePage.jsx` — name edit, change password, account info |
 
 ---
 
@@ -57,7 +60,7 @@
 | 3 | Signup page | ✅ | Real API integration, toast notifications |
 | 4 | Auth state management (Context / Zustand) | ✅ | AuthContext with Axios interceptors |
 | 5 | Protected route wrapper | ✅ | `<ProtectedRoute>` component implemented |
-| 6 | Dashboard (post-login) | 🟡 | Basic dashboard exists with Logout button |
+| 6 | Dashboard (post-login) | ✅ | Full dashboard with Create/Join/Edit/Delete space modals |
 
 ---
 
@@ -123,7 +126,7 @@
 | 4 | Quill editor | ✅ | `quill` v2 installed & rendering |
 | 5 | `y-quill` binding | ✅ | Binding Yjs `ytext` to Quill editor |
 | 6 | WebSocket provider for Yjs | ✅ | Local `y-websocket` server running alongside Express on `/yjs` |
-| 7 | Document persistence / snapshots | ❌ | — |
+| 7 | Document persistence / snapshots | ✅ | Auto-save (debounced 1.5s) + manual save to MongoDB via `PATCH /api/spaces/:id/notes` |
 | 8 | Reconnection handling | ✅ | Handled inherently by `socket.io-client` & `y-websocket` |
 | 9 | Presence (online / offline) | 🟡 | `provider.awareness` set, but no UI list yet |
 | 10 | Cursor awareness | ✅ | `quill-cursors` integrated |
@@ -232,8 +235,8 @@
 | 1 | Frontend deployed | ❌ | — |
 | 2 | Backend deployed | ❌ | — |
 | 3 | Production WebSocket support | ❌ | — |
-| 4 | MongoDB Atlas | ❌ | Using local MongoDB |
-| 5 | Managed Redis | ❌ | REDIS_URL is empty |
+| 4 | MongoDB Atlas | ✅ | Using Atlas cluster: `ac-vkv6dco-shard-00-00.hlkcanr.mongodb.net` |
+| 5 | Managed Redis | ❌ | REDIS_URL is empty (optional — app works without it) |
 
 ---
 
@@ -291,46 +294,78 @@
 
 ```
 StudySync/
+├── AGENT.md                        ← Agent behavior rules
 ├── StudySync_PRD.md
 ├── MEMORY.md                       ← This file
 ├── client/                         # React + Vite + TailwindCSS v4
 │   ├── index.html
 │   ├── package.json
-│   ├── vite.config.js
+│   ├── vite.config.js              # host: true for LAN access
 │   └── src/
 │       ├── main.jsx
-│       ├── App.jsx                 # Routes: /, /login, /signup
+│       ├── App.jsx                 # Routes: /, /login, /signup, /dashboard, /spaces/:id, /profile
 │       ├── index.css               # Tailwind theme tokens
-│       ├── App.css                 # Vite scaffold leftover CSS
+│       ├── App.css
 │       ├── assets/
-│       ├── components/ui/
-│       │   ├── Button.jsx
-│       │   ├── Card.jsx
-│       │   ├── Input.jsx
-│       │   └── Label.jsx
+│       ├── lib/
+│       │   └── api.js              # Axios instance with interceptors
+│       ├── context/
+│       │   ├── AuthContext.jsx      # Auth state management
+│       │   └── SocketContext.jsx    # Socket.IO connection provider
+│       ├── components/
+│       │   ├── auth/
+│       │   │   └── ProtectedRoute.jsx
+│       │   ├── layout/
+│       │   │   └── Topbar.jsx       # Navigation bar with profile dropdown
+│       │   ├── space/
+│       │   │   ├── ChatPanel.jsx           # Real-time chat with Socket.IO
+│       │   │   ├── CollaborativeEditor.jsx # Yjs + Quill CRDT editor
+│       │   │   ├── CreateSpaceModal.jsx
+│       │   │   ├── DeleteSpaceModal.jsx
+│       │   │   ├── EditSpaceModal.jsx
+│       │   │   └── JoinSpaceModal.jsx
+│       │   └── ui/
+│       │       ├── Button.jsx
+│       │       ├── Card.jsx
+│       │       ├── Input.jsx
+│       │       └── Label.jsx
 │       └── pages/
 │           ├── LandingPage.jsx
 │           ├── LoginPage.jsx
-│           └── SignupPage.jsx
+│           ├── SignupPage.jsx
+│           ├── DashboardPage.jsx
+│           ├── WorkspacePage.jsx
+│           └── ProfilePage.jsx     # User profile: edit name, change password
 │
-└── server/                         # Express + Mongoose + ioredis
+└── server/                         # Express + Mongoose + ioredis + Socket.IO
     ├── .env
-    ├── index.js                    # Entry point
+    ├── index.js                    # Entry point (LAN-aware CORS)
     ├── package.json
     ├── config/
     │   ├── db.js                   # MongoDB connection
-    │   └── redis.js                # Redis connection (optional)
+    │   ├── redis.js                # Redis pub/sub clients (fixed exports)
+    │   ├── socket.js               # Socket.IO with auth + chat events
+    │   └── yjs.js                  # Yjs CRDT WebSocket server
     ├── controllers/
-    │   └── authController.js       # register, login, getMe
+    │   ├── authController.js       # register, login, getMe, logout, updateProfile, changePassword
+    │   ├── messageController.js    # getMessages (paginated)
+    │   └── spaceController.js      # CRUD + join for study spaces
     ├── middleware/
     │   ├── auth.js                 # JWT protect middleware
-    │   └── error.js                # Global error handler
+    │   ├── error.js                # Global error handler
+    │   ├── rateLimiter.js          # Rate limiting
+    │   └── validate.js             # Express-validator rules
     ├── models/
-    │   └── User.js                 # User schema
+    │   ├── User.js
+    │   ├── StudySpace.js
+    │   ├── Membership.js
+    │   └── Message.js
     ├── routes/
-    │   └── auth.js                 # /api/auth/*
+    │   ├── auth.js                 # /api/auth/*
+    │   └── spaces.js               # /api/spaces/* (includes nested /messages)
     ├── scripts/
     │   └── seed.js                 # DB seeder
     └── utils/
         └── generateToken.js        # JWT sign utility
 ```
+

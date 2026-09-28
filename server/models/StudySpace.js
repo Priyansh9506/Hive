@@ -37,6 +37,14 @@ const studySpaceSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    notesContent: {
+      type: String,
+      default: '',
+    },
+    lastSavedAt: {
+      type: Date,
+      default: Date.now,
+    },
   },
   {
     timestamps: true,

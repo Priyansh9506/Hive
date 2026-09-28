@@ -16,13 +16,11 @@ export function SocketProvider({ children }) {
     const token = localStorage.getItem('token');
 
     if (isAuthenticated && token) {
-      const newSocket = io(
-        (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace('/api', ''),
-        {
-          auth: { token },
-          transports: ['websocket'],
-        }
-      );
+      const backendUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+      const newSocket = io(backendUrl, {
+        auth: { token },
+        transports: ['websocket'],
+      });
 
       newSocket.on('connect', () => {
         console.log('Socket connected:', newSocket.id);

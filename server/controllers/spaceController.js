@@ -233,6 +233,42 @@ const deleteSpace = async (req, res, next) => {
   }
 };
 
+// @desc    Update shared notes content for a space
+// @route   PATCH /api/spaces/:id/notes
+// @access  Private (Any member)
+const updateNotes = async (req, res, next) => {
+  try {
+    // Verify user is a member of this space
+    const membership = await Membership.findOne({ spaceId: req.params.id, userId: req.user.id });
+    if (!membership) {
+      return res.status(403).json({ success: false, message: 'Not authorized to edit notes in this space' });
+    }
+
+    const { notesContent } = req.body;
+
+    const space = await StudySpace.findByIdAndUpdate(
+      req.params.id,
+      {
+        notesContent: typeof notesContent === 'string' ? notesContent : '',
+        lastSavedAt: new Date(),
+      },
+      { new: true }
+    );
+
+    if (!space) {
+      return res.status(404).json({ success: false, message: 'Space not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      notesContent: space.notesContent,
+      lastSavedAt: space.lastSavedAt,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createSpace,
   getSpaces,
@@ -240,4 +276,5 @@ module.exports = {
   getSpace,
   updateSpace,
   deleteSpace,
+  updateNotes,
 };

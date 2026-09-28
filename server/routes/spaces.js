@@ -6,6 +6,7 @@ const {
   getSpace,
   updateSpace,
   deleteSpace,
+  updateNotes,
 } = require('../controllers/spaceController');
 const { getMessages } = require('../controllers/messageController');
 const { protect } = require('../middleware/auth');
@@ -27,6 +28,8 @@ router.route('/:id')
   .get(getSpace)
   .patch(updateSpace)
   .delete(deleteSpace);
+
+router.patch('/:id/notes', updateNotes);
 
 // Nested message routes
 router.get('/:spaceId/messages', getMessages);

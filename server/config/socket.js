@@ -11,7 +11,17 @@ let io;
 const initSocket = (server) => {
   io = new Server(server, {
     cors: {
-      origin: process.env.CLIENT_URL || 'http://localhost:5173',
+      origin: (origin, callback) => {
+        // Allow all origins in development for LAN access
+        if (process.env.NODE_ENV !== 'production') {
+          return callback(null, true);
+        }
+        const allowed = (process.env.CLIENT_URL || 'http://localhost:5173').split(',').map(s => s.trim());
+        if (!origin || allowed.includes(origin)) {
+          return callback(null, true);
+        }
+        callback(new Error('Not allowed by CORS'));
+      },
       credentials: true,
     },
   });

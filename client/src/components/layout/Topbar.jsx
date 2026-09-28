@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../ui/Button';
 import { LogOut, BookOpen, User as UserIcon } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export default function Topbar() {
   const { user, logout } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const navigate = useNavigate();
 
   return (
     <header className="bg-white border-b sticky top-0 z-40">
@@ -44,7 +45,7 @@ export default function Topbar() {
                 </div>
                 <button
                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
-                  onClick={() => {/* TODO: Profile */}}
+                  onClick={() => { setDropdownOpen(false); navigate('/profile'); }}
                 >
                   <UserIcon size={16} /> Profile
                 </button>
