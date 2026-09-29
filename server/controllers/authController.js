@@ -22,11 +22,15 @@ const register = async (req, res, next) => {
     const salt = await bcrypt.genSalt(12);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // Generate default avatar
+    const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name.trim())}&background=random`;
+
     // Create user
     const user = await User.create({
       name: name.trim(),
       email: email.toLowerCase().trim(),
       password: hashedPassword,
+      avatarUrl: defaultAvatar,
     });
 
     // Generate token
@@ -39,6 +43,7 @@ const register = async (req, res, next) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        avatarUrl: user.avatarUrl,
         createdAt: user.createdAt,
       },
     });
@@ -82,6 +87,7 @@ const login = async (req, res, next) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        avatarUrl: user.avatarUrl,
         createdAt: user.createdAt,
       },
     });
@@ -109,6 +115,7 @@ const getMe = async (req, res, next) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        avatarUrl: user.avatarUrl,
         createdAt: user.createdAt,
       },
     });
@@ -159,6 +166,7 @@ const updateProfile = async (req, res, next) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        avatarUrl: user.avatarUrl,
         createdAt: user.createdAt,
       },
     });
@@ -215,4 +223,40 @@ const changePassword = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login, getMe, logout, updateProfile, changePassword };
+// @desc    Upload avatar
+// @route   POST /api/auth/avatar
+// @access  Private
+const uploadAvatar = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload an image file',
+      });
+    }
+
+    const fileUrl = `/uploads/${req.file.filename}`;
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { avatarUrl: fileUrl },
+      { new: true, runValidators: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Avatar uploaded successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { register, login, getMe, logout, updateProfile, changePassword, uploadAvatar };

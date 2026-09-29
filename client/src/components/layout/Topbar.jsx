@@ -71,9 +71,17 @@ export default function Topbar() {
                 onClick={() => setDropdownOpen(!dropdownOpen)}
                 className="flex items-center gap-2 hover:bg-gray-50 p-2 rounded-full transition-colors"
               >
-                <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
-                  {user?.name?.charAt(0).toUpperCase() || 'U'}
-                </div>
+                {user?.avatarUrl ? (
+                  <img
+                    src={(import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '') + user.avatarUrl}
+                    alt="Profile"
+                    className="h-8 w-8 rounded-full object-cover shadow-sm border border-gray-200"
+                  />
+                ) : (
+                  <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
+                    {user?.name?.charAt(0).toUpperCase() || 'U'}
+                  </div>
+                )}
                 <span className="hidden md:block text-sm font-medium text-gray-700">
                   {user?.name}
                 </span>

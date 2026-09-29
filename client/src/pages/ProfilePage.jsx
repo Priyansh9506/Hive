@@ -4,15 +4,29 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Label } from '../components/ui/Label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
-import { User, Mail, Calendar, Lock, Save, ArrowLeft, Shield, BookOpen } from 'lucide-react';
+import { User, Mail, Calendar, Lock, Save, ArrowLeft, Shield, BookOpen, Camera } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
+import Cropper from 'react-easy-crop';
+import getCroppedImg from '../utils/cropImage';
+import { Modal } from '../components/ui/Modal';
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
   const [name, setName] = useState(user?.name || '');
   const [savingName, setSavingName] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  // Cropper state
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [imageSrc, setImageSrc] = useState(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+
+  const API_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+  const fullAvatarUrl = (url) => (url?.startsWith('/uploads/') ? `${API_ORIGIN}${url}` : url);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -40,15 +54,53 @@ export default function ProfilePage() {
 
     setSavingName(true);
     try {
-      const res = await api.patch('/auth/profile', { name: name.trim() });
-      // Update local user state - refresh the page to get the new name everywhere
+      await api.patch('/auth/profile', { name: name.trim() });
       toast.success('Name updated successfully');
-      // Force a page reload to refresh AuthContext
       window.location.reload();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update name');
     } finally {
       setSavingName(false);
+    }
+  };
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.addEventListener('load', () => {
+      setImageSrc(reader.result?.toString() || '');
+      setCropModalOpen(true);
+      setZoom(1);
+      setCrop({ x: 0, y: 0 });
+    });
+    reader.readAsDataURL(file);
+    e.target.value = ''; // Reset input
+  };
+
+  const onCropComplete = React.useCallback((croppedArea, croppedAreaPixels) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  }, []);
+
+  const uploadCroppedImage = async () => {
+    try {
+      setUploadingAvatar(true);
+      const croppedImageBlob = await getCroppedImg(imageSrc, croppedAreaPixels, 0);
+      
+      const formData = new FormData();
+      formData.append('avatar', croppedImageBlob, 'avatar.jpg');
+
+      await api.post('/auth/avatar', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      toast.success('Profile image updated');
+      setCropModalOpen(false);
+      window.location.reload();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to upload image');
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
@@ -132,8 +184,29 @@ export default function ProfilePage() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-5">
-              <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg shrink-0">
-                {initials}
+              <div className="relative group shrink-0">
+                {user?.avatarUrl ? (
+                  <img
+                    src={fullAvatarUrl(user.avatarUrl)}
+                    alt="Profile"
+                    className="h-20 w-20 rounded-full object-cover shadow-lg border border-gray-200"
+                  />
+                ) : (
+                  <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                    {initials}
+                  </div>
+                )}
+                <label className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+                  <Camera size={20} />
+                  <span className="text-[10px] mt-1 font-medium">Edit</span>
+                  <input
+                    type="file"
+                    accept="image/png, image/jpeg, image/gif, image/webp"
+                    className="hidden"
+                    onChange={handleAvatarUpload}
+                    disabled={uploadingAvatar}
+                  />
+                </label>
               </div>
               <div className="flex-1 min-w-0">
                 <h2 className="text-xl font-bold text-gray-900 truncate">{user?.name}</h2>
@@ -272,6 +345,47 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Crop Modal */}
+      <Modal isOpen={cropModalOpen} onClose={() => !uploadingAvatar && setCropModalOpen(false)} title="Crop Profile Picture">
+        <div className="relative w-full h-64 bg-gray-900 rounded-md overflow-hidden">
+          {imageSrc && (
+            <Cropper
+              image={imageSrc}
+              crop={crop}
+              zoom={zoom}
+              aspect={1}
+              cropShape="round"
+              showGrid={false}
+              onCropChange={setCrop}
+              onCropComplete={onCropComplete}
+              onZoomChange={setZoom}
+            />
+          )}
+        </div>
+        <div className="mt-4 flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500">Zoom</span>
+            <input
+              type="range"
+              value={zoom}
+              min={1}
+              max={3}
+              step={0.1}
+              onChange={(e) => setZoom(Number(e.target.value))}
+              className="flex-1"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2 mt-2 border-t">
+            <Button variant="ghost" onClick={() => setCropModalOpen(false)} disabled={uploadingAvatar}>
+              Cancel
+            </Button>
+            <Button onClick={uploadCroppedImage} disabled={uploadingAvatar}>
+              {uploadingAvatar ? 'Uploading...' : 'Save Image'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

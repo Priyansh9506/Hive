@@ -44,7 +44,7 @@
 | 8 | Auth during WebSocket handshake | ✅ | Socket.IO middleware in `config/socket.js`; Yjs upgrade checked separately in `config/yjs.js` (token + membership) |
 | 9 | Google OAuth (future) | ❌ | Phase 2 |
 | 10 | University email verification (future) | ❌ | — |
-| 11 | Profile image (future) | ❌ | `avatarUrl` field exists; no upload/display |
+| 11 | Profile image | ✅ | `avatarUrl` field, `POST /api/auth/avatar` with multer, UI in Profile & Topbar |
 | 12 | `PATCH /api/auth/profile` — Update name | ✅ | `authController.updateProfile` |
 | 13 | `PATCH /api/auth/password` — Change password | ✅ | `authController.changePassword`, re-issues JWT |
 
@@ -243,7 +243,7 @@ Editor stays mounted (hidden) while other panels are open, so the live connectio
 | 2 | Backend deployed | ❌ | Needs a host with persistent WebSockets (Render/Railway/Fly) |
 | 3 | Production WebSocket support | ❌ | — |
 | 4 | MongoDB Atlas | ✅ | Atlas cluster in use |
-| 5 | Managed Redis | ❌ | REDIS_URL empty (optional — app works without it) |
+| 5 | Managed Redis | ✅ | Upstash Redis configured via REDIS_URL |
 
 ---
 
@@ -289,12 +289,12 @@ Editor stays mounted (hidden) while other panels are open, so the live connectio
 | Search | 1 | 0 | 0 | 1 |
 | Notifications | 3 | 0 | 0 | 3 |
 | Security & Errors | 7 | 1 | 0 | 8 |
-| Deployment | 1 | 0 | 4 | 5 |
+| Deployment | 2 | 0 | 3 | 5 |
 | Gemini (Phase 2) | 0 | 0 | 5 | 5 |
 | Testing | 0 | 0 | 3 | 3 |
-| **TOTAL** | **102** | **2** | **15** | **119** |
+| **TOTAL** | **103** | **2** | **14** | **119** |
 
-> **Overall: 102 of 119 tracked items done (~86%).** The feature-complete core loop (Create → Invite → Collaborate → Capture → Revisit) works end to end. What remains is the heavier non-feature work: **deployment with production WebSockets, automated tests, server-side HTML sanitization**, plus Phase-2 items (Gemini, Google OAuth, profile images).
+> **Overall: 103 of 119 tracked items done (~87%).** The feature-complete core loop (Create → Invite → Collaborate → Capture → Revisit) works end to end. What remains is the heavier non-feature work: **deployment with production WebSockets, automated tests, server-side HTML sanitization**, plus Phase-2 items (Gemini, Google OAuth, profile images).
 
 ### Suggested next steps
 1. Test framework (Jest/Vitest + supertest + socket.io-client) covering PRD §48 scenarios A–F
