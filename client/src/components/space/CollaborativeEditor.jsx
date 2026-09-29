@@ -21,6 +21,9 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
   const editorInstanceRef = useRef(null);
   const saveTimeoutRef = useRef(null);
   const selectionRangeRef = useRef(null); // last non-empty selection, for "Explain"
+  // Whether the notes changed since this tab last saved a version. Unknown on
+  // load, so the first "Save Now" always asks the server.
+  const changedSinceVersionRef = useRef(true);
   const { user } = useAuth();
 
   const [status, setStatus] = useState('connecting');
@@ -29,6 +32,7 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
   const [peers, setPeers] = useState([]);       // others editing right now
   const [selection, setSelection] = useState(''); // currently selected text
   const [authError, setAuthError] = useState(false);
+  const [versionSaving, setVersionSaving] = useState(false);
 
   // Core save function to MongoDB
   const saveToDatabase = useCallback(async (contentToSave) => {
@@ -60,16 +64,43 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
     onExplain(text, context);
   };
 
-  // Manual save handler
-  const handleManualSave = () => {
-    if (!editorInstanceRef.current) return;
+  // "Save Now": store the notes as a version in the history, but only when they
+  // changed since the last version. Nothing changed in this tab since the last
+  // save means nothing to ask the server; otherwise the server compares the
+  // content (other members' edits count too) and decides.
+  const handleManualSave = async () => {
+    const editor = editorInstanceRef.current;
+    if (!editor || versionSaving) return;
+
+    if (!changedSinceVersionRef.current) {
+      toast('No changes since your last save', { icon: '✓' });
+      return;
+    }
+
+    // Write the pending HTML copy as well, so it matches the version
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = null;
+      saveToDatabase(editor.root.innerHTML);
     }
-    const html = editorInstanceRef.current.root.innerHTML;
-    saveToDatabase(html);
-    toast.success('Notes saved to cloud');
+
+    // Cleared before the request, so an edit made while it is in flight
+    // marks the notes as changed again
+    changedSinceVersionRef.current = false;
+    setVersionSaving(true);
+    try {
+      const res = await api.post(`/spaces/${spaceId}/versions/save`);
+      if (res.data.alreadySaved) {
+        toast(res.data.message, { icon: '✓' });
+      } else {
+        toast.success(res.data.message);
+      }
+    } catch (err) {
+      changedSinceVersionRef.current = true;
+      toast.error(err.response?.data?.message || 'Could not save a version. Please try again.');
+    } finally {
+      setVersionSaving(false);
+    }
   };
 
   useEffect(() => {
@@ -176,7 +207,9 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
     syncPeers();
 
     // 8. Auto-save on change (debounced 1.5s)
+    // Fires for remote edits too, which also make the next "Save Now" count
     const handleTextChange = () => {
+      changedSinceVersionRef.current = true;
       setSaveStatus('unsaved');
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
@@ -309,12 +342,12 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
           {/* Manual Save Button */}
           <button
             onClick={handleManualSave}
-            disabled={saveStatus === 'saving'}
+            disabled={versionSaving}
             className="text-xs px-2.5 py-1 rounded-md bg-white hover:bg-gray-100 active:bg-gray-200 border border-gray-300 text-gray-700 font-medium transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
-            title="Save notes to cloud now"
+            title="Save the notes as a new version in Version history (only if they changed)"
           >
-            <Save size={13} />
-            <span>Save Now</span>
+            {versionSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+            <span>{versionSaving ? 'Saving...' : 'Save Now'}</span>
           </button>
 
           {/* Real-time Sync Connection Indicator */}

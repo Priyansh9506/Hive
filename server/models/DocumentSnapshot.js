@@ -39,6 +39,13 @@ const documentSnapshotSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // sha256 of the content with its formatting, so "has anything changed since
+    // this version?" is one string comparison. Null on versions saved before it
+    // existed; config/yjs.js computes those on demand.
+    contentHash: {
+      type: String,
+      default: null,
+    },
     createdBy: {
       type: mongoose.Schema.ObjectId,
       ref: 'User',

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, History, Loader2, RotateCcw } from 'lucide-react';
+import { ArrowLeft, History, Loader2, RotateCcw, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '../ui/Button';
 import { useSocket } from '../../context/SocketContext';
@@ -22,6 +22,7 @@ export default function VersionsPanel({ spaceId, onRestored }) {
   const [loadingVersion, setLoadingVersion] = useState(null);
   const [confirming, setConfirming] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const loadVersions = useCallback(async () => {
     try {
@@ -40,12 +41,12 @@ export default function VersionsPanel({ spaceId, onRestored }) {
     loadVersions();
   }, [loadVersions]);
 
-  // Snapshots are taken server-side; a restore by anyone is the one event that
-  // is announced, and it always adds a version, so refresh on it.
+  // Timed snapshots happen quietly server-side; a manual save or a restore by
+  // anyone is announced, and each adds a version, so refresh on those.
   useEffect(() => {
     if (!socket) return;
     const handleActivity = (activity) => {
-      if (String(activity.spaceId) === String(spaceId) && activity.type === 'snapshot_restored') {
+      if (String(activity.spaceId) === String(spaceId) && ['snapshot_created', 'snapshot_restored'].includes(activity.type)) {
         loadVersions();
       }
     };
@@ -82,6 +83,23 @@ export default function VersionsPanel({ spaceId, onRestored }) {
     }
   };
 
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await api.post(`/spaces/${spaceId}/versions/save`);
+      if (res.data.alreadySaved) {
+        toast(res.data.message, { icon: '✓' });
+      } else {
+        toast.success(res.data.message);
+        loadVersions();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save version');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div className="px-4 py-2.5 bg-gray-50 border-b flex items-center justify-between shrink-0 gap-2">
@@ -97,8 +115,16 @@ export default function VersionsPanel({ spaceId, onRestored }) {
             <History size={15} /> Version history
           </h3>
         )}
-        {!viewing && lastSavedAt && (
-          <span className="text-[11px] text-gray-400">Last saved {stamp(lastSavedAt)}</span>
+        {!viewing && (
+          <div className="flex items-center gap-2">
+            {lastSavedAt && (
+              <span className="text-[11px] text-gray-400 hidden sm:inline">Last saved {stamp(lastSavedAt)}</span>
+            )}
+            <Button size="sm" className="h-7 text-xs px-2.5" onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 size={13} className="animate-spin mr-1" /> : <Save size={13} className="mr-1" />}
+              {saving ? 'Saving...' : 'Save Now'}
+            </Button>
+          </div>
         )}
       </div>
 

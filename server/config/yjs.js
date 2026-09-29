@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const WebSocket = require('ws');
 const Y = require('yjs');
 const jwt = require('jsonwebtoken');
@@ -52,6 +53,104 @@ const writeState = (docName, ydoc) => {
 };
 
 /**
+ * Fingerprint of the notes' content: the text together with its formatting
+ * (the Quill delta). Two versions are "the same" exactly when this matches, so
+ * an edit anywhere in the document, or a formatting-only change such as making
+ * a word bold, counts as a change, while reconnects and no-op syncs do not.
+ */
+const contentHashOf = (ydoc) =>
+  crypto.createHash('sha256').update(JSON.stringify(ydoc.getText('quill').toDelta())).digest('hex');
+
+// Latest version of a space and its fingerprint. Versions saved before
+// fingerprints existed have none, so theirs is computed from the stored state.
+const latestVersionOf = async (spaceId) => {
+  const latest = await DocumentSnapshot.findOne({ spaceId })
+    .sort({ version: -1 })
+    .select('version contentHash')
+    .lean();
+  if (!latest || latest.contentHash) return latest;
+
+  const full = await DocumentSnapshot.findById(latest._id).select('+snapshotData');
+  const doc = new Y.Doc();
+  try {
+    Y.applyUpdate(doc, new Uint8Array(full.snapshotData));
+    return { ...latest, contentHash: contentHashOf(doc) };
+  } finally {
+    doc.destroy();
+  }
+};
+
+// Snapshot creation per doc runs one at a time. Version numbers are "latest + 1",
+// so two saves racing (a double-click, or a manual save landing on a timed one)
+// would otherwise both pick the same number.
+const snapshotQueues = new Map(); // docName -> tail of the queue
+
+const enqueueSnapshot = (docName, task) => {
+  const run = (snapshotQueues.get(docName) || Promise.resolve()).then(task, task);
+  const tail = run.catch(() => {}).finally(() => {
+    if (snapshotQueues.get(docName) === tail) snapshotQueues.delete(docName);
+  });
+  snapshotQueues.set(docName, tail);
+  return run;
+};
+
+/**
+ * Store the document as a new version, unless it matches the latest version.
+ *
+ * @param {string} docName
+ * @param {Y.Doc}  ydoc
+ * @param {object} [options]
+ * @param {boolean} [options.force] - save even if unchanged (guards a restore)
+ * @param {object}  [options.user]  - `{ id, name }` to credit; defaults to the last editor
+ * @returns {Promise<{ created: boolean, reason?: 'empty' | 'unchanged', version?: object, latestVersion?: number }>}
+ */
+const createSnapshot = (docName, ydoc, { force = false, user } = {}) =>
+  enqueueSnapshot(docName, async () => {
+    const spaceId = spaceIdFor(docName);
+    const text = previewOf(ydoc);
+
+    // Nothing worth versioning yet
+    if (text.trim().length === 0) return { created: false, reason: 'empty' };
+
+    const contentHash = contentHashOf(ydoc);
+    const latest = await latestVersionOf(spaceId);
+
+    if (!force && latest && latest.contentHash === contentHash) {
+      return { created: false, reason: 'unchanged', latestVersion: latest.version };
+    }
+
+    const author = user || lastEditor.get(docName);
+    const snapshot = await DocumentSnapshot.create({
+      spaceId,
+      documentId: docName,
+      snapshotData: Buffer.from(Y.encodeStateAsUpdate(ydoc)),
+      contentHash,
+      version: (latest?.version || 0) + 1,
+      preview: text.replace(/\s+/g, ' ').trim().slice(0, 300),
+      charCount: text.length,
+      createdBy: author?.id || null,
+      createdByName: author?.name || 'Unknown',
+    });
+
+    // Update the space's lastSavedAt so the UI shows when this was saved
+    await StudySpace.updateOne({ _id: spaceId }, { lastSavedAt: snapshot.createdAt });
+
+    // Keep only the most recent N versions per space
+    const stale = await DocumentSnapshot.find({ spaceId })
+      .sort({ version: -1 })
+      .skip(MAX_SNAPSHOTS_PER_SPACE)
+      .select('_id')
+      .lean();
+    if (stale.length > 0) {
+      await DocumentSnapshot.deleteMany({ _id: { $in: stale.map((s) => s._id) } });
+    }
+
+    lastSnapshotAt.set(docName, Date.now());
+    const { snapshotData: _data, ...version } = snapshot.toObject();
+    return { created: true, version };
+  });
+
+/**
  * Store a version of the document if the snapshot interval has elapsed.
  * Runs off the back of a state save, so it costs nothing while nobody is typing.
  */
@@ -68,45 +167,43 @@ const maybeSnapshot = async (docName, ydoc, { force = false } = {}) => {
   lastSnapshotAt.set(docName, now);
 
   try {
-    const text = previewOf(ydoc);
-
-    // Nothing worth versioning yet
-    if (text.trim().length === 0) return;
-
-    const latest = await DocumentSnapshot.findOne({ spaceId })
-      .sort({ version: -1 })
-      .select('version charCount')
-      .lean();
-
-    // Skip if the document has not actually changed since the last version. A
-    // forced snapshot guards a restore, where a same-length edit must not be lost.
-    if (!force && latest && latest.charCount === text.length) return;
-
-    const editor = lastEditor.get(docName);
-    await DocumentSnapshot.create({
-      spaceId,
-      documentId: docName,
-      snapshotData: Buffer.from(Y.encodeStateAsUpdate(ydoc)),
-      version: (latest?.version || 0) + 1,
-      preview: text.replace(/\s+/g, ' ').trim().slice(0, 300),
-      charCount: text.length,
-      createdBy: editor?.id || null,
-      createdByName: editor?.name || 'Unknown',
-    });
-
-    // Keep only the most recent N versions per space
-    const stale = await DocumentSnapshot.find({ spaceId })
-      .sort({ version: -1 })
-      .skip(MAX_SNAPSHOTS_PER_SPACE)
-      .select('_id')
-      .lean();
-    if (stale.length > 0) {
-      await DocumentSnapshot.deleteMany({ _id: { $in: stale.map((s) => s._id) } });
-    }
+    await createSnapshot(docName, ydoc, { force });
   } catch (err) {
     console.error(`Yjs: snapshot failed for ${docName}:`, err.message);
     // Let the next save try again rather than waiting a full interval
     lastSnapshotAt.set(docName, previous || 0);
+  }
+};
+
+/**
+ * "Save Now": store the current notes as a version immediately, if they differ
+ * from the latest version. Uses the live document when someone is editing, so
+ * the version includes edits the debounced save has not written yet; otherwise
+ * the stored state.
+ *
+ * @param {string} spaceId
+ * @param {object} user - `{ id, name }` of the member saving
+ */
+const saveVersionNow = async (spaceId, user) => {
+  const docName = docNameFor(spaceId);
+
+  const live = docs.get(docName);
+  if (live) {
+    await loading.get(docName);
+    const result = await createSnapshot(docName, live, { user });
+    // Persist now too, so the saved version and the stored notes agree
+    if (result.created) await writeState(docName, live);
+    return result;
+  }
+
+  await pendingWrites.get(docName);
+  const space = await StudySpace.findById(spaceId).select('+notesState');
+  const doc = new Y.Doc();
+  try {
+    if (space?.notesState?.length) Y.applyUpdate(doc, new Uint8Array(space.notesState));
+    return await createSnapshot(docName, doc, { user });
+  } finally {
+    doc.destroy();
   }
 };
 
@@ -324,4 +421,4 @@ const initYjs = (server) => {
   console.log('Yjs WebSocket server initialized on /yjs (authenticated, persisted to MongoDB)');
 };
 
-module.exports = { initYjs, restoreSnapshot, getNotesText };
+module.exports = { initYjs, restoreSnapshot, getNotesText, saveVersionNow };

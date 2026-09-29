@@ -123,4 +123,50 @@ const restoreVersion = async (req, res, next) => {
   }
 };
 
-module.exports = { getVersions, getVersion, restoreVersion };
+// @desc    Save the current notes as a new version ("Save Now")
+// @route   POST /api/spaces/:spaceId/versions/save
+// @access  Private (Member only)
+//
+// Creates a version only when the notes differ from the latest one (text or
+// formatting). Otherwise it reports which version they already match.
+const saveVersion = async (req, res, next) => {
+  try {
+    // Lazy for the same reason as in getVersion
+    const { saveVersionNow } = require('../config/yjs');
+    const result = await saveVersionNow(req.spaceId, { id: String(req.user.id), name: req.user.name });
+
+    if (!result.created) {
+      return res.status(200).json({
+        success: true,
+        alreadySaved: true,
+        reason: result.reason,
+        latestVersion: result.latestVersion ?? null,
+        message:
+          result.reason === 'empty'
+            ? 'The notes are empty — there is nothing to save yet'
+            : `No changes since version ${result.latestVersion}`,
+      });
+    }
+
+    const { version } = result;
+    await logActivity({
+      spaceId: req.spaceId,
+      user: req.user,
+      type: 'snapshot_created',
+      summary: `saved version ${version.version} of the shared notes`,
+      targetType: 'snapshot',
+      targetId: version._id,
+    });
+
+    res.status(201).json({
+      success: true,
+      alreadySaved: false,
+      message: `Saved as version ${version.version}`,
+      version,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getVersions, getVersion, restoreVersion, saveVersion };

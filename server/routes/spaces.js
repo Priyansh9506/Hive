@@ -25,7 +25,7 @@ const {
   deleteHighlight,
 } = require('../controllers/highlightController');
 const { getActivity } = require('../controllers/activityController');
-const { getVersions, getVersion, restoreVersion } = require('../controllers/snapshotController');
+const { getVersions, getVersion, restoreVersion, saveVersion } = require('../controllers/snapshotController');
 const aiRoutes = require('./ai');
 const { protect } = require('../middleware/auth');
 const { requireMember, requireOwner } = require('../middleware/space');
@@ -103,6 +103,8 @@ router.get('/:spaceId/activity', requireMember, getActivity);
 // ---------- Document versions ----------
 router.get('/:spaceId/versions', requireMember, getVersions);
 router.get('/:spaceId/versions/:version', requireMember, getVersion);
+// Manual save — saves the current notes as a new version immediately
+router.post('/:spaceId/versions/save', requireMember, saveVersion);
 // Any member may restore: members can already edit the notes, and a restore is
 // itself undoable by restoring the version saved just before it.
 router.post('/:spaceId/versions/:version/restore', requireMember, restoreVersion);
