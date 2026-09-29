@@ -6,12 +6,22 @@ import ChatPanel from '../components/space/ChatPanel';
 import { ArrowLeft, Users, MessageSquare, BookOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import api from '../lib/api';
 
+const DESKTOP_QUERY = '(min-width: 768px)'; // Tailwind `md`
+
 export default function WorkspacePage() {
   const { id } = useParams();
   const [space, setSpace] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('notes'); // 'notes' | 'chat'
   const [chatOpen, setChatOpen] = useState(true);
+  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia(DESKTOP_QUERY).matches);
+
+  useEffect(() => {
+    const mq = window.matchMedia(DESKTOP_QUERY);
+    const onChange = (e) => setIsDesktop(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   useEffect(() => {
     const fetchSpace = async () => {
@@ -31,6 +41,10 @@ export default function WorkspacePage() {
   if (!space) return <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-500">Space not found or unauthorized.</div>;
 
   const spaceId = space._id || space.id;
+  // Mount exactly one ChatPanel: they share one socket, so a second instance
+  // unmounting would emit leave_space and pull the socket out of the room.
+  const showChatInCenter = !isDesktop && activeTab === 'chat';
+  const showChatSidebar = isDesktop && chatOpen;
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
@@ -101,18 +115,18 @@ export default function WorkspacePage() {
 
         {/* Center Content — Notes or Chat on mobile */}
         <div className="flex-1 p-2 sm:p-4 md:p-6 overflow-hidden flex flex-col">
-          {activeTab === 'notes' ? (
-            <CollaborativeEditor spaceId={spaceId} initialNotes={space.notesContent || ''} />
-          ) : (
-            <div className="md:hidden h-full">
+          {showChatInCenter ? (
+            <div className="h-full">
               <ChatPanel spaceId={spaceId} />
             </div>
+          ) : (
+            <CollaborativeEditor spaceId={spaceId} initialNotes={space.notesContent || ''} />
           )}
         </div>
 
         {/* Right Sidebar — Chat Panel (desktop only) */}
-        {chatOpen && (
-          <div className="hidden md:flex w-80 lg:w-96 shrink-0 border-l p-2">
+        {showChatSidebar && (
+          <div className="flex w-80 lg:w-96 shrink-0 border-l p-2">
             <div className="w-full">
               <ChatPanel spaceId={spaceId} />
             </div>

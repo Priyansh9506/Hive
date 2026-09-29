@@ -1,6 +1,6 @@
 # StudySync — Implementation Memory
 
-> **Last Updated:** 2026-09-28  
+> **Last Updated:** 2026-09-29  
 > **Purpose:** Track what has been built vs. what remains from the [PRD](./StudySync_PRD.md).
 
 ---
@@ -126,8 +126,8 @@
 | 4 | Quill editor | ✅ | `quill` v2 installed & rendering |
 | 5 | `y-quill` binding | ✅ | Binding Yjs `ytext` to Quill editor |
 | 6 | WebSocket provider for Yjs | ✅ | Local `y-websocket` server running alongside Express on `/yjs` |
-| 7 | Document persistence / snapshots | ✅ | Auto-save (debounced 1.5s) + manual save to MongoDB via `PATCH /api/spaces/:id/notes` |
-| 8 | Reconnection handling | ✅ | Handled inherently by `socket.io-client` & `y-websocket` |
+| 7 | Document persistence / snapshots | ✅ | Yjs doc state persisted server-side to `StudySpace.notesState` (binary, `select: false`) by `config/yjs.js`, loaded before the WS handshake so it survives server restarts. HTML copy still auto-saved via `PATCH /api/spaces/:id/notes` and only used to seed spaces with no Yjs state |
+| 8 | Reconnection handling | ✅ | Notes: `y-websocket` reconnects + resyncs. Chat: `ChatPanel` re-joins the room and refetches latest messages on `socket.io` `reconnect` (rooms are lost on reconnect/nodemon restart) |
 | 9 | Presence (online / offline) | 🟡 | `provider.awareness` set, but no UI list yet |
 | 10 | Cursor awareness | ✅ | `quill-cursors` integrated |
 
@@ -142,7 +142,7 @@
 | 3 | `POST /api/spaces/:spaceId/messages` | ✅ | Handled via Socket.IO for speed with MongoDB persistence |
 | 4 | `PATCH /api/messages/:messageId` | ❌ | — |
 | 5 | `DELETE /api/messages/:messageId` | ❌ | — |
-| 6 | Real-time message delivery (Socket.IO) | ✅ | Broadcasts to room, optimistic sender reconciliation |
+| 6 | Real-time message delivery (Socket.IO) | ✅ | Broadcasts to others in room; sender confirmed via socket ack (swaps optimistic copy, shows "Not sent" on error). Membership checked per message. Only one `ChatPanel` mounted per page (shared socket) |
 | 7 | Typing indicator | ✅ | `typing_start` / `typing_stop` sockets |
 | 8 | Unread indicator | ❌ | — |
 | 9 | Chat UI | ✅ | `ChatPanel.jsx` with optimistic loading, auto-scroll |
@@ -345,7 +345,7 @@ StudySync/
     │   ├── db.js                   # MongoDB connection
     │   ├── redis.js                # Redis pub/sub clients (fixed exports)
     │   ├── socket.js               # Socket.IO with auth + chat events
-    │   └── yjs.js                  # Yjs CRDT WebSocket server
+    │   └── yjs.js                  # Yjs CRDT WebSocket server + MongoDB persistence
     ├── controllers/
     │   ├── authController.js       # register, login, getMe, logout, updateProfile, changePassword
     │   ├── messageController.js    # getMessages (paginated)

@@ -7,6 +7,15 @@ import api from '../../lib/api';
 // Generate a simple client-side unique ID for optimistic messages
 const clientMsgId = () => `client_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
+// Merge saved messages into the list: incoming ones replace any copy with the same _id
+// or clientId (i.e. the optimistic version), and the result stays in chronological order.
+const mergeMessages = (current, incoming) => {
+  const ids = new Set(incoming.map((m) => m._id));
+  const clientIds = new Set(incoming.map((m) => m.clientId).filter(Boolean));
+  const kept = current.filter((m) => !ids.has(m._id) && !(m.clientId && clientIds.has(m.clientId)));
+  return [...kept, ...incoming].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+};
+
 export default function ChatPanel({ spaceId }) {
   const socket = useSocket();
   const { user } = useAuth();
@@ -30,9 +39,11 @@ export default function ChatPanel({ spaceId }) {
   useEffect(() => {
     const loadHistory = async () => {
       setLoadingHistory(true);
+      setMessages([]);
       try {
         const res = await api.get(`/spaces/${spaceId}/messages?limit=40`);
-        setMessages(res.data.messages);
+        // Merge rather than replace: live messages may have arrived while this loaded
+        setMessages((prev) => mergeMessages(prev, res.data.messages));
         setHasMore(res.data.hasMore);
         isInitialLoad.current = true;
       } catch (err) {
@@ -83,22 +94,25 @@ export default function ChatPanel({ spaceId }) {
   useEffect(() => {
     if (!socket) return;
 
-    socket.emit('join_space', spaceId);
+    const joinRoom = () => socket.emit('join_space', spaceId);
+    joinRoom();
+
+    // Room membership lives on the server-side socket, so a reconnect (server restart,
+    // network drop) starts in no rooms. Re-join, then pull anything sent while offline.
+    const handleReconnect = async () => {
+      joinRoom();
+      setTypingUsers([]);
+      try {
+        const res = await api.get(`/spaces/${spaceId}/messages?limit=40`);
+        setMessages((prev) => mergeMessages(prev, res.data.messages));
+      } catch (err) {
+        console.error('Failed to resync messages', err);
+      }
+    };
 
     const handleMessage = (msg) => {
-      setMessages((prev) => {
-        // If this message has a clientId that matches an optimistic message, replace it
-        if (msg.clientId) {
-          const idx = prev.findIndex((m) => m.clientId === msg.clientId);
-          if (idx !== -1) {
-            const updated = [...prev];
-            updated[idx] = { ...msg, _optimistic: false };
-            return updated;
-          }
-        }
-        // Otherwise it's from another user — append
-        return [...prev, msg];
-      });
+      if (String(msg.spaceId) !== String(spaceId)) return;
+      setMessages((prev) => mergeMessages(prev, [msg]));
 
       // Auto-scroll if near the bottom
       const container = messagesContainerRef.current;
@@ -122,12 +136,14 @@ export default function ChatPanel({ spaceId }) {
       setTypingUsers((prev) => prev.filter((u) => u.userId !== userId));
     };
 
+    socket.io.on('reconnect', handleReconnect);
     socket.on('receive_message', handleMessage);
     socket.on('user_typing', handleTyping);
     socket.on('user_stop_typing', handleStopTyping);
 
     return () => {
       socket.emit('leave_space', spaceId);
+      socket.io.off('reconnect', handleReconnect);
       socket.off('receive_message', handleMessage);
       socket.off('user_typing', handleTyping);
       socket.off('user_stop_typing', handleStopTyping);
@@ -157,8 +173,14 @@ export default function ChatPanel({ spaceId }) {
     setInput('');
     scrollToBottom();
 
-    // Emit to server
-    socket.emit('send_message', { spaceId, content, clientId: cid });
+    // Emit to server; the ack carries the saved message (or an error) back to us
+    socket.emit('send_message', { spaceId, content, clientId: cid }, (res) => {
+      if (res?.message) {
+        setMessages((prev) => mergeMessages(prev, [res.message]));
+      } else {
+        setMessages((prev) => prev.map((m) => (m.clientId === cid ? { ...m, _failed: true } : m)));
+      }
+    });
 
     // Stop typing indicator
     socket.emit('typing_stop', spaceId);
@@ -245,8 +267,8 @@ export default function ChatPanel({ spaceId }) {
                 >
                   {msg.content}
                 </div>
-                <span className="text-[10px] text-gray-300 mx-1 mt-0.5">
-                  {formatTime(msg.createdAt)}
+                <span className={`text-[10px] mx-1 mt-0.5 ${msg._failed ? 'text-red-500' : 'text-gray-300'}`}>
+                  {msg._failed ? 'Not sent' : formatTime(msg.createdAt)}
                 </span>
               </div>
             );

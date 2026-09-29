@@ -3,3 +3,6 @@ node_modules/
 *.log
 .DS_Store
 dist/
+
+# Uploaded resources (served from /uploads, not source)
+server/uploads/

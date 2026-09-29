@@ -1,7 +1,18 @@
+const fs = require('fs/promises');
+const path = require('path');
 const StudySpace = require('../models/StudySpace');
 const Membership = require('../models/Membership');
 const Message = require('../models/Message');
-const { nanoid } = require('nanoid');
+const Resource = require('../models/Resource');
+const Highlight = require('../models/Highlight');
+const Pin = require('../models/Pin');
+const Activity = require('../models/Activity');
+const DocumentSnapshot = require('../models/DocumentSnapshot');
+const Notification = require('../models/Notification');
+const User = require('../models/User');
+const logActivity = require('../utils/logActivity');
+const notify = require('../utils/notify');
+const { generateJoinCode, normalizeJoinCode } = require('../utils/joinCode');
 
 // @desc    Create a new study space
 // @route   POST /api/spaces
@@ -10,16 +21,11 @@ const createSpace = async (req, res, next) => {
   try {
     const { name, description, icon, color } = req.body;
 
-    // Generate a unique 7-character join code (e.g. 7KQ-9PM)
-    const rawCode = nanoid(6).toUpperCase();
-    const joinCode = `${rawCode.slice(0, 3)}-${rawCode.slice(3, 6)}`;
-
-    // Create the space
     const space = await StudySpace.create({
       name,
       description,
       ownerId: req.user.id,
-      joinCode,
+      joinCode: await generateJoinCode(),
       icon: icon || 'book',
       color: color || '#6366f1',
     });
@@ -31,9 +37,19 @@ const createSpace = async (req, res, next) => {
       role: 'owner',
     });
 
+    await logActivity({
+      spaceId: space._id,
+      user: req.user,
+      type: 'space_created',
+      summary: `created the space "${space.name}"`,
+      targetType: 'space',
+      targetId: space._id,
+    });
+
     // Return space with member count (1 initially)
     const spaceData = space.toObject();
     spaceData.membersCount = 1;
+    spaceData.userRole = 'owner';
 
     res.status(201).json({
       success: true,
@@ -49,23 +65,25 @@ const createSpace = async (req, res, next) => {
 // @access  Private
 const getSpaces = async (req, res, next) => {
   try {
-    // Find all memberships for this user
     const memberships = await Membership.find({ userId: req.user.id })
       .populate('spaceId')
       .sort({ createdAt: -1 });
 
-    const spaces = [];
+    const live = memberships.filter((m) => m.spaceId);
 
-    // For each space, get the total member count
-    for (const membership of memberships) {
-      if (membership.spaceId) {
-        const membersCount = await Membership.countDocuments({ spaceId: membership.spaceId._id });
-        const spaceData = membership.spaceId.toObject();
-        spaceData.membersCount = membersCount;
-        spaceData.userRole = membership.role;
-        spaces.push(spaceData);
-      }
-    }
+    // One grouped count query rather than one per space
+    const counts = await Membership.aggregate([
+      { $match: { spaceId: { $in: live.map((m) => m.spaceId._id) } } },
+      { $group: { _id: '$spaceId', count: { $sum: 1 } } },
+    ]);
+    const countBySpace = new Map(counts.map((c) => [String(c._id), c.count]));
+
+    const spaces = live.map((membership) => {
+      const spaceData = membership.spaceId.toObject();
+      spaceData.membersCount = countBySpace.get(String(membership.spaceId._id)) || 1;
+      spaceData.userRole = membership.role;
+      return spaceData;
+    });
 
     res.status(200).json({
       success: true,
@@ -83,13 +101,13 @@ const getSpaces = async (req, res, next) => {
 const joinSpace = async (req, res, next) => {
   try {
     const { code } = req.body;
-    
-    if (!code) {
+
+    if (!code || !String(code).trim()) {
       return res.status(400).json({ success: false, message: 'Please provide a join code' });
     }
 
-    const space = await StudySpace.findOne({ joinCode: code });
-    
+    const space = await StudySpace.findOne({ joinCode: normalizeJoinCode(code) });
+
     if (!space) {
       return res.status(404).json({ success: false, message: 'Invalid join code' });
     }
@@ -98,59 +116,144 @@ const joinSpace = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Invites are currently disabled for this space' });
     }
 
+    if (space.joinCodeExpiresAt && space.joinCodeExpiresAt < new Date()) {
+      return res.status(403).json({
+        success: false,
+        message: 'This invite code has expired. Ask the space owner for a new one.',
+      });
+    }
+
+    if (space.joinCodeMaxUses !== null && space.joinCodeUses >= space.joinCodeMaxUses) {
+      return res.status(403).json({
+        success: false,
+        message: 'This invite code has reached its maximum number of uses.',
+      });
+    }
+
     // Check if already a member
     const existingMembership = await Membership.findOne({
       spaceId: space._id,
-      userId: req.user.id
+      userId: req.user.id,
     });
 
     if (existingMembership) {
       return res.status(400).json({ success: false, message: 'You are already a member of this space' });
     }
 
-    // Join space
     await Membership.create({
       spaceId: space._id,
       userId: req.user.id,
       role: 'member',
     });
 
+    // Only a join that actually happened counts against the limit
+    await StudySpace.updateOne({ _id: space._id }, { $inc: { joinCodeUses: 1 } });
+
+    await logActivity({
+      spaceId: space._id,
+      user: req.user,
+      type: 'member_joined',
+      summary: 'joined the space',
+      targetType: 'member',
+      targetId: req.user.id,
+    });
+
+    // Tell the owner someone joined (PRD §24), unless they joined their own space
+    if (String(space.ownerId) !== String(req.user.id)) {
+      await notify({
+        userId: space.ownerId,
+        spaceId: space._id,
+        type: 'member_joined',
+        title: `${req.user.name} joined ${space.name}`,
+        body: 'They can now edit the shared notes and take part in the discussion.',
+        link: `/spaces/${space._id}`,
+      });
+    }
+
     const membersCount = await Membership.countDocuments({ spaceId: space._id });
     const spaceData = space.toObject();
     spaceData.membersCount = membersCount;
     spaceData.userRole = 'member';
+    spaceData.joinCodeUses = space.joinCodeUses + 1;
 
     res.status(200).json({
       success: true,
       message: `Successfully joined ${space.name}`,
-      space: spaceData
+      space: spaceData,
     });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Get a single space details (if member)
-// @route   GET /api/spaces/:id
+// @desc    Preview a space behind an invite code without joining it, so the
+//          join screen can name the space before the user commits (PRD §10.1)
+// @route   GET /api/spaces/invite/:code
 // @access  Private
-const getSpace = async (req, res, next) => {
+const previewInvite = async (req, res, next) => {
   try {
-    // Check membership
-    const membership = await Membership.findOne({ spaceId: req.params.id, userId: req.user.id });
-    if (!membership) {
-      return res.status(403).json({ success: false, message: 'Not authorized to access this space' });
+    const space = await StudySpace.findOne({ joinCode: normalizeJoinCode(req.params.code) }).select(
+      'name description icon color ownerId inviteEnabled joinCodeExpiresAt joinCodeMaxUses joinCodeUses'
+    );
+
+    if (!space) {
+      return res.status(404).json({ success: false, message: 'Invalid invite code' });
     }
 
-    const space = await StudySpace.findById(req.params.id);
-    const membersCount = await Membership.countDocuments({ spaceId: space._id });
-    
-    const spaceData = space.toObject();
-    spaceData.membersCount = membersCount;
-    spaceData.userRole = membership.role;
+    const expired = Boolean(space.joinCodeExpiresAt && space.joinCodeExpiresAt < new Date());
+    const exhausted = space.joinCodeMaxUses !== null && space.joinCodeUses >= space.joinCodeMaxUses;
+
+    const [owner, membersCount, membership] = await Promise.all([
+      User.findById(space.ownerId).select('name'),
+      Membership.countDocuments({ spaceId: space._id }),
+      Membership.findOne({ spaceId: space._id, userId: req.user.id }),
+    ]);
 
     res.status(200).json({
       success: true,
-      space: spaceData
+      invite: {
+        spaceId: space._id,
+        name: space.name,
+        description: space.description,
+        icon: space.icon,
+        color: space.color,
+        ownerName: owner?.name || 'Unknown',
+        membersCount,
+        alreadyMember: Boolean(membership),
+        valid: space.inviteEnabled && !expired && !exhausted,
+        reason: !space.inviteEnabled
+          ? 'Invites are currently disabled for this space'
+          : expired
+            ? 'This invite code has expired'
+            : exhausted
+              ? 'This invite code has reached its maximum number of uses'
+              : '',
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get a single space details
+// @route   GET /api/spaces/:id
+// @access  Private (Member only)
+const getSpace = async (req, res, next) => {
+  try {
+    const space = await StudySpace.findById(req.spaceId);
+    if (!space) {
+      return res.status(404).json({ success: false, message: 'Space not found' });
+    }
+
+    const membersCount = await Membership.countDocuments({ spaceId: space._id });
+
+    const spaceData = space.toObject();
+    spaceData.membersCount = membersCount;
+    spaceData.userRole = req.membership.role;
+
+    res.status(200).json({
+      success: true,
+      space: spaceData,
     });
   } catch (error) {
     next(error);
@@ -162,12 +265,6 @@ const getSpace = async (req, res, next) => {
 // @access  Private (Owner only)
 const updateSpace = async (req, res, next) => {
   try {
-    // Check ownership
-    const membership = await Membership.findOne({ spaceId: req.params.id, userId: req.user.id });
-    if (!membership || membership.role !== 'owner') {
-      return res.status(403).json({ success: false, message: 'Only the space owner can update settings' });
-    }
-
     const allowedFields = ['name', 'description', 'icon', 'color', 'inviteEnabled'];
     const updates = {};
     for (const field of allowedFields) {
@@ -180,7 +277,7 @@ const updateSpace = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'No valid fields to update' });
     }
 
-    const space = await StudySpace.findByIdAndUpdate(req.params.id, updates, {
+    const space = await StudySpace.findByIdAndUpdate(req.spaceId, updates, {
       new: true,
       runValidators: true,
     });
@@ -188,6 +285,15 @@ const updateSpace = async (req, res, next) => {
     if (!space) {
       return res.status(404).json({ success: false, message: 'Space not found' });
     }
+
+    await logActivity({
+      spaceId: space._id,
+      user: req.user,
+      type: 'space_updated',
+      summary: `updated the space (${Object.keys(updates).join(', ')})`,
+      targetType: 'space',
+      targetId: space._id,
+    });
 
     const membersCount = await Membership.countDocuments({ spaceId: space._id });
     const spaceData = space.toObject();
@@ -208,20 +314,34 @@ const updateSpace = async (req, res, next) => {
 // @access  Private (Owner only)
 const deleteSpace = async (req, res, next) => {
   try {
-    // Check ownership
-    const membership = await Membership.findOne({ spaceId: req.params.id, userId: req.user.id });
-    if (!membership || membership.role !== 'owner') {
-      return res.status(403).json({ success: false, message: 'Only the space owner can delete this space' });
-    }
-
-    const space = await StudySpace.findById(req.params.id);
+    const space = await StudySpace.findById(req.spaceId);
     if (!space) {
       return res.status(404).json({ success: false, message: 'Space not found' });
     }
 
-    // Delete all related data (messages, memberships, then the space itself)
-    await Message.deleteMany({ spaceId: space._id });
-    await Membership.deleteMany({ spaceId: space._id });
+    // Remove uploaded files from disk before the rows pointing at them go
+    const uploads = await Resource.find({
+      spaceId: space._id,
+      'metadata.storedName': { $nin: ['', null] },
+    })
+      .select('metadata.storedName')
+      .lean();
+
+    const uploadDir = path.join(__dirname, '..', 'uploads');
+    await Promise.all(
+      uploads.map((r) => fs.unlink(path.join(uploadDir, r.metadata.storedName)).catch(() => {}))
+    );
+
+    await Promise.all([
+      Message.deleteMany({ spaceId: space._id }),
+      Resource.deleteMany({ spaceId: space._id }),
+      Highlight.deleteMany({ spaceId: space._id }),
+      Pin.deleteMany({ spaceId: space._id }),
+      Activity.deleteMany({ spaceId: space._id }),
+      DocumentSnapshot.deleteMany({ spaceId: space._id }),
+      Notification.deleteMany({ spaceId: space._id }),
+      Membership.deleteMany({ spaceId: space._id }),
+    ]);
     await StudySpace.findByIdAndDelete(space._id);
 
     res.status(200).json({
@@ -235,19 +355,13 @@ const deleteSpace = async (req, res, next) => {
 
 // @desc    Update shared notes content for a space
 // @route   PATCH /api/spaces/:id/notes
-// @access  Private (Any member)
+// @access  Private (Member only)
 const updateNotes = async (req, res, next) => {
   try {
-    // Verify user is a member of this space
-    const membership = await Membership.findOne({ spaceId: req.params.id, userId: req.user.id });
-    if (!membership) {
-      return res.status(403).json({ success: false, message: 'Not authorized to edit notes in this space' });
-    }
-
     const { notesContent } = req.body;
 
     const space = await StudySpace.findByIdAndUpdate(
-      req.params.id,
+      req.spaceId,
       {
         notesContent: typeof notesContent === 'string' ? notesContent : '',
         lastSavedAt: new Date(),
@@ -273,6 +387,7 @@ module.exports = {
   createSpace,
   getSpaces,
   joinSpace,
+  previewInvite,
   getSpace,
   updateSpace,
   deleteSpace,

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -14,6 +14,9 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  // An invite link sends visitors here first; return them to it afterwards
+  const redirectTo = location.state?.from || '/dashboard';
 
   const handleSignup = async (e) => {
     e.preventDefault();
@@ -21,7 +24,7 @@ export default function SignupPage() {
     try {
       await register(name, email, password);
       toast.success('Account created successfully!');
-      navigate('/dashboard');
+      navigate(redirectTo, { replace: true });
     } catch (error) {
       toast.error(error.response?.data?.message || 'Registration failed. Please try again.');
     } finally {

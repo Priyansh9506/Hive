@@ -3,14 +3,34 @@ const {
   createSpace,
   getSpaces,
   joinSpace,
+  previewInvite,
   getSpace,
   updateSpace,
   deleteSpace,
   updateNotes,
 } = require('../controllers/spaceController');
-const { getMessages } = require('../controllers/messageController');
+const { getMessages, updateMessage, deleteMessage } = require('../controllers/messageController');
+const { getMembers, leaveSpace, removeMember } = require('../controllers/memberController');
+const {
+  getInvite,
+  updateInvite,
+  regenerateInvite,
+  sendEmailInvite,
+} = require('../controllers/inviteController');
+const { getResources, createResource, deleteResource } = require('../controllers/resourceController');
+const { getPins, createPin, deletePin } = require('../controllers/pinController');
+const {
+  getHighlights,
+  createHighlight,
+  deleteHighlight,
+} = require('../controllers/highlightController');
+const { getActivity } = require('../controllers/activityController');
+const { getVersions, getVersion } = require('../controllers/snapshotController');
 const { protect } = require('../middleware/auth');
-const { apiLimiter } = require('../middleware/rateLimiter');
+const { requireMember, requireOwner } = require('../middleware/space');
+const { apiLimiter, uploadLimiter, emailLimiter } = require('../middleware/rateLimiter');
+const { uploadSingle } = require('../middleware/upload');
+const { validate, spaceRules, resourceRules, pinRules, highlightRules } = require('../middleware/validate');
 
 const router = express.Router();
 
@@ -18,20 +38,68 @@ const router = express.Router();
 router.use(protect);
 router.use(apiLimiter);
 
+// ---------- Collection-level ----------
 router.route('/')
-  .post(createSpace)
+  .post(spaceRules, validate, createSpace)
   .get(getSpaces);
 
 router.post('/join', joinSpace);
+router.get('/invite/:code', previewInvite);
 
+// ---------- Single space ----------
+// requireMember loads the caller's membership onto the request; requireOwner
+// then checks its role. Both run before the controller, so controllers never
+// re-query authorization.
 router.route('/:id')
-  .get(getSpace)
-  .patch(updateSpace)
-  .delete(deleteSpace);
+  .get(requireMember, getSpace)
+  .patch(requireMember, requireOwner, updateSpace)
+  .delete(requireMember, requireOwner, deleteSpace);
 
-router.patch('/:id/notes', updateNotes);
+router.patch('/:id/notes', requireMember, updateNotes);
 
-// Nested message routes
-router.get('/:spaceId/messages', getMessages);
+// ---------- Members ----------
+router.get('/:spaceId/members', requireMember, getMembers);
+router.post('/:spaceId/leave', requireMember, leaveSpace);
+router.delete('/:spaceId/members/:userId', requireMember, requireOwner, removeMember);
+
+// ---------- Invites ----------
+router.route('/:spaceId/invites')
+  .get(requireMember, getInvite)
+  .post(requireMember, requireOwner, updateInvite);
+router.post('/:spaceId/invites/regenerate', requireMember, requireOwner, regenerateInvite);
+router.post('/:spaceId/invites/email', requireMember, emailLimiter, sendEmailInvite);
+
+// ---------- Messages ----------
+router.get('/:spaceId/messages', requireMember, getMessages);
+router.route('/:spaceId/messages/:messageId')
+  .patch(requireMember, updateMessage)
+  .delete(requireMember, deleteMessage);
+
+// ---------- Resources ----------
+// `uploadSingle` must run before validation so multipart fields are parsed into
+// req.body; it is a no-op for JSON requests (links and code snippets).
+router.route('/:spaceId/resources')
+  .get(requireMember, getResources)
+  .post(requireMember, uploadLimiter, uploadSingle('file'), resourceRules, validate, createResource);
+router.delete('/:spaceId/resources/:resourceId', requireMember, deleteResource);
+
+// ---------- Pins ----------
+router.route('/:spaceId/pins')
+  .get(requireMember, getPins)
+  .post(requireMember, pinRules, validate, createPin);
+router.delete('/:spaceId/pins/:pinId', requireMember, deletePin);
+
+// ---------- Highlights ----------
+router.route('/:spaceId/highlights')
+  .get(requireMember, getHighlights)
+  .post(requireMember, highlightRules, validate, createHighlight);
+router.delete('/:spaceId/highlights/:highlightId', requireMember, deleteHighlight);
+
+// ---------- Activity feed ----------
+router.get('/:spaceId/activity', requireMember, getActivity);
+
+// ---------- Document versions ----------
+router.get('/:spaceId/versions', requireMember, getVersions);
+router.get('/:spaceId/versions/:version', requireMember, getVersion);
 
 module.exports = router;

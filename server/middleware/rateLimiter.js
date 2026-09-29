@@ -1,4 +1,5 @@
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 
 // Strict limiter for auth endpoints (login/register)
 const authLimiter = rateLimit({
@@ -24,4 +25,33 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-module.exports = { authLimiter, apiLimiter };
+// Uploads cost disk, so they get a tighter budget than ordinary reads
+const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: {
+    success: false,
+    message: 'Too many uploads. Please wait a few minutes before adding more files.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Outbound email is the one endpoint that can be turned into a spam relay,
+// so it is limited hard and per user rather than per IP.
+const emailLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 15,
+  // Authenticated requests key on the user; the IP fallback goes through the
+  // library's helper so an IPv6 client cannot sidestep the limit by rotating
+  // addresses inside its /64.
+  keyGenerator: (req, res) => (req.user?.id ? `user:${req.user.id}` : ipKeyGenerator(req, res)),
+  message: {
+    success: false,
+    message: 'Invite email limit reached. Please try again later, or share the invite link directly.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+module.exports = { authLimiter, apiLimiter, uploadLimiter, emailLimiter };

@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
 const connectDB = require('./config/db');
@@ -9,6 +10,8 @@ const errorHandler = require('./middleware/error');
 // Route imports
 const authRoutes = require('./routes/auth');
 const spacesRoutes = require('./routes/spaces');
+const notificationRoutes = require('./routes/notifications');
+const searchRoutes = require('./routes/search');
 
 // Initialize Express
 const app = express();
@@ -40,9 +43,29 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Uploaded resources. `Cross-Origin-Resource-Policy` lets the client render them
+// from its own origin; `X-Content-Type-Options` stops a browser sniffing an
+// uploaded file into something executable.
+app.use(
+  '/uploads',
+  (req, res, next) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    next();
+  },
+  express.static(path.join(__dirname, 'uploads'), {
+    // Never run an upload as a page in the user's origin
+    setHeaders: (res) => res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'"),
+    index: false,
+    dotfiles: 'deny',
+  })
+);
+
 // --------------- Routes ---------------
 app.use('/api/auth', authRoutes);
 app.use('/api/spaces', spacesRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/search', searchRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

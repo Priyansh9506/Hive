@@ -37,6 +37,20 @@ const studySpaceSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // Optional invite constraints (PRD §10.2). Null means "no limit".
+    joinCodeExpiresAt: {
+      type: Date,
+      default: null,
+    },
+    joinCodeMaxUses: {
+      type: Number,
+      default: null,
+      min: [1, 'Maximum uses must be at least 1'],
+    },
+    joinCodeUses: {
+      type: Number,
+      default: 0,
+    },
     notesContent: {
       type: String,
       default: '',
@@ -45,6 +59,12 @@ const studySpaceSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    // Binary Yjs state of the shared notes, read/written by config/yjs.js.
+    // Hidden from API responses; notesContent (HTML) is the readable copy.
+    notesState: {
+      type: Buffer,
+      select: false,
+    },
   },
   {
     timestamps: true,
@@ -52,6 +72,9 @@ const studySpaceSchema = new mongoose.Schema(
     toObject: { virtuals: true }
   }
 );
+
+// Supports the MVP search across space names and descriptions
+studySpaceSchema.index({ name: 'text', description: 'text' });
 
 // Virtual for getting members via the Membership collection
 studySpaceSchema.virtual('memberships', {

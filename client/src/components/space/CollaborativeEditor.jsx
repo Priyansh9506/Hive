@@ -7,12 +7,12 @@ import QuillCursors from 'quill-cursors';
 import 'quill/dist/quill.snow.css';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../lib/api';
-import { Cloud, CheckCircle2, Loader2, Save, Wifi, WifiOff } from 'lucide-react';
+import { Cloud, CheckCircle2, Loader2, Save, Wifi, WifiOff, Highlighter, Users, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 Quill.register('modules/cursors', QuillCursors);
 
-export default function CollaborativeEditor({ spaceId, initialNotes = '' }) {
+export default function CollaborativeEditor({ spaceId, initialNotes = '', onHighlight }) {
   const containerRef = useRef(null);
   const editorInstanceRef = useRef(null);
   const saveTimeoutRef = useRef(null);
@@ -21,6 +21,9 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '' }) {
   const [status, setStatus] = useState('connecting');
   const [saveStatus, setSaveStatus] = useState('saved'); // 'saved' | 'saving' | 'unsaved' | 'error'
   const [lastSavedTime, setLastSavedTime] = useState(null);
+  const [peers, setPeers] = useState([]);       // others editing right now
+  const [selection, setSelection] = useState(''); // currently selected text
+  const [authError, setAuthError] = useState(false);
 
   // Core save function to MongoDB
   const saveToDatabase = useCallback(async (contentToSave) => {
@@ -66,14 +69,25 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '' }) {
     const ydoc = new Y.Doc();
     const rawUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
     const cleanUrl = rawUrl.replace(/\/api\/?$/, '').replace(/^http/, 'ws');
+    // The server authenticates the Yjs upgrade and checks space membership, so
+    // the token has to travel with the handshake (it becomes a query param).
     const provider = new WebsocketProvider(
       `${cleanUrl}/yjs`,
       `studysync-room-${spaceId}`,
-      ydoc
+      ydoc,
+      { params: { token: localStorage.getItem('token') || '' } }
     );
 
     provider.on('status', event => {
       setStatus(event.status); // 'connected' or 'disconnected'
+    });
+
+    // A rejected handshake (expired token, membership revoked) would otherwise
+    // just look like an ordinary reconnect loop.
+    provider.on('connection-close', (event) => {
+      if (event?.code === 4001 || event?.code === 1006) {
+        setAuthError(true);
+      }
     });
 
     const ytext = ydoc.getText('quill');
@@ -102,30 +116,23 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '' }) {
     // 5. Bind Quill to Yjs
     const binding = new QuillBinding(ytext, editor, provider.awareness);
 
-    // 6. Seed initial notes from MongoDB if the shared document is empty
-    let initialized = false;
-    const trySeedNotes = () => {
-      if (initialized) return;
-      if (ytext.toString().trim() === '' && initialNotes && initialNotes.trim() !== '<p><br></p>') {
+    // 6. Seed from the saved HTML only for spaces that have no shared doc yet. The server
+    //    loads the stored doc before the first sync, so the doc is only empty after sync
+    //    when there is nothing to merge with. Seeding before sync duplicates the notes.
+    let seeded = false;
+    const seedFromHtml = (isSynced) => {
+      if (!isSynced || seeded) return;
+      seeded = true;
+      if (ytext.length === 0 && initialNotes && initialNotes.trim() !== '<p><br></p>') {
         try {
           editor.clipboard.dangerouslyPasteHTML(initialNotes);
-          initialized = true;
         } catch (e) {
           console.error('Failed to seed initial notes:', e);
         }
-      } else {
-        initialized = true;
       }
     };
 
-    provider.on('synced', (isSynced) => {
-      if (isSynced) {
-        trySeedNotes();
-      }
-    });
-
-    // Fallback seed after 600ms if sync event already fired
-    const seedTimer = setTimeout(trySeedNotes, 600);
+    provider.on('synced', seedFromHtml);
 
     // 7. Awareness (Live cursor tracking for other members)
     const randomColor = '#' + ['3b82f6', '10b981', 'f59e0b', 'ec4899', '8b5cf6', '06b6d4'][
@@ -135,6 +142,19 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '' }) {
       name: user?.name || 'Anonymous',
       color: randomColor,
     });
+
+    // Surface everyone currently in the document. Awareness states are keyed by
+    // client id, so the same person in two tabs appears once per tab — dedupe by name.
+    const syncPeers = () => {
+      const seen = new Map();
+      provider.awareness.getStates().forEach((state, clientId) => {
+        if (!state.user || clientId === provider.awareness.clientID) return;
+        seen.set(state.user.name, state.user);
+      });
+      setPeers([...seen.values()]);
+    };
+    provider.awareness.on('change', syncPeers);
+    syncPeers();
 
     // 8. Auto-save on change (debounced 1.5s)
     const handleTextChange = () => {
@@ -150,9 +170,14 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '' }) {
 
     editor.on('text-change', handleTextChange);
 
+    // Track the selected text so "Highlight selection" knows what to capture
+    const handleSelectionChange = (range) => {
+      setSelection(range && range.length > 0 ? editor.getText(range.index, range.length).trim() : '');
+    };
+    editor.on('selection-change', handleSelectionChange);
+
     // 9. Cleanup on unmount or spaceId change
     return () => {
-      clearTimeout(seedTimer);
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
         // Flush any pending save before unmounting
@@ -162,6 +187,8 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '' }) {
         }
       }
       editor.off('text-change', handleTextChange);
+      editor.off('selection-change', handleSelectionChange);
+      provider.awareness.off('change', syncPeers);
       binding.destroy();
       provider.destroy();
       ydoc.destroy();
@@ -211,6 +238,38 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '' }) {
 
         {/* Right Action Bar */}
         <div className="flex items-center gap-2">
+          {/* Who else is in the document right now */}
+          {peers.length > 0 && (
+            <div className="hidden sm:flex items-center gap-1.5 pr-1" title={`${peers.map((p) => p.name).join(', ')} editing now`}>
+              <Users size={13} className="text-gray-400" />
+              <div className="flex -space-x-1.5">
+                {peers.slice(0, 3).map((p) => (
+                  <span
+                    key={p.name}
+                    className="h-5 w-5 rounded-full text-[9px] font-bold text-white flex items-center justify-center ring-2 ring-gray-50"
+                    style={{ backgroundColor: p.color }}
+                  >
+                    {p.name.charAt(0).toUpperCase()}
+                  </span>
+                ))}
+              </div>
+              {peers.length > 3 && <span className="text-[10px] text-gray-500">+{peers.length - 3}</span>}
+            </div>
+          )}
+
+          {/* Turn the current selection into a categorised highlight (PRD §16) */}
+          {onHighlight && (
+            <button
+              onClick={() => onHighlight(selection)}
+              disabled={!selection}
+              className="text-xs px-2.5 py-1 rounded-md bg-white hover:bg-amber-50 active:bg-amber-100 border border-gray-300 text-gray-700 font-medium transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title={selection ? 'Mark the selected text as a highlight' : 'Select some text in the notes first'}
+            >
+              <Highlighter size={13} />
+              <span className="hidden sm:inline">Highlight</span>
+            </button>
+          )}
+
           {/* Manual Save Button */}
           <button
             onClick={handleManualSave}
@@ -245,6 +304,18 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '' }) {
           </span>
         </div>
       </div>
+
+      {/* A rejected handshake means the session or membership is no longer valid,
+          which a plain "Offline" pill would misrepresent as a network blip. */}
+      {authError && (
+        <div className="px-4 py-2 bg-rose-50 border-b border-rose-200 flex items-start gap-2 shrink-0">
+          <ShieldAlert size={15} className="text-rose-600 mt-0.5 shrink-0" />
+          <p className="text-xs text-rose-700 leading-relaxed">
+            Live sync was refused. Your session may have expired, or you no longer have access to this space.
+            Your local edits are safe — reload the page to reconnect.
+          </p>
+        </div>
+      )}
 
       {/* Editor Main Container (Toolbar + Editable Area) */}
       <div

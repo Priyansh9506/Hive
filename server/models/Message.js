@@ -28,6 +28,33 @@ const messageSchema = new mongoose.Schema(
       type: String,
       index: true,
     },
+    // Resources posted alongside the message (the "share a solution" flow, PRD §15)
+    attachments: [
+      {
+        resourceId: { type: mongoose.Schema.ObjectId, ref: 'Resource' },
+        type: { type: String, enum: ['link', 'image', 'pdf', 'document', 'code', 'file'] },
+        url: { type: String },
+        title: { type: String },
+      },
+    ],
+    replyTo: {
+      type: mongoose.Schema.ObjectId,
+      ref: 'Message',
+      default: null,
+    },
+    isPinned: {
+      type: Boolean,
+      default: false,
+    },
+    editedAt: {
+      type: Date,
+      default: null,
+    },
+    // Soft delete: the row stays so pins and replies pointing at it still resolve
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -36,5 +63,7 @@ const messageSchema = new mongoose.Schema(
 
 // Compound index for efficient message history queries (newest first)
 messageSchema.index({ spaceId: 1, createdAt: -1 });
+// Supports the MVP message search
+messageSchema.index({ content: 'text' });
 
 module.exports = mongoose.model('Message', messageSchema);
