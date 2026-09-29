@@ -10,11 +10,12 @@ import HighlightsPanel from '../components/space/HighlightsPanel';
 import ActivityPanel from '../components/space/ActivityPanel';
 import MembersPanel from '../components/space/MembersPanel';
 import VersionsPanel from '../components/space/VersionsPanel';
+import AIPanel from '../components/space/AIPanel';
 import InviteModal from '../components/space/InviteModal';
 import HighlightModal from '../components/space/HighlightModal';
 import {
   ArrowLeft, Users, MessageSquare, BookOpen, PanelRightClose, PanelRightOpen,
-  Paperclip, Pin, Highlighter, Activity, History, UserPlus, Loader2, Wifi, WifiOff,
+  Paperclip, Pin, Highlighter, Activity, History, UserPlus, Loader2, Wifi, WifiOff, Sparkles,
 } from 'lucide-react';
 import { useSocket, useSocketStatus } from '../context/SocketContext';
 import api from '../lib/api';
@@ -28,6 +29,7 @@ const MARK_READ_DEBOUNCE_MS = 2000;
 const TABS = [
   { id: 'notes', label: 'Shared Notes', icon: BookOpen },
   { id: 'chat', label: 'Discussion', icon: MessageSquare, mobileOnly: true },
+  { id: 'ai', label: 'AI Assistant', icon: Sparkles },
   { id: 'resources', label: 'Resources', icon: Paperclip },
   { id: 'pins', label: 'Pinned', icon: Pin },
   { id: 'highlights', label: 'Highlights', icon: Highlighter },
@@ -58,6 +60,7 @@ export default function WorkspacePage() {
   const [isDesktop, setIsDesktop] = useState(() => window.matchMedia(DESKTOP_QUERY).matches);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [highlightTarget, setHighlightTarget] = useState(null);
+  const [explainRequest, setExplainRequest] = useState(null); // { text, context } from the editor
   const [unread, setUnread] = useState(0);
   const markReadTimer = useRef(null);
 
@@ -216,6 +219,13 @@ export default function WorkspacePage() {
     (text) => setHighlightTarget({ sourceType: 'notes', text }),
     []
   );
+
+  // "Explain" in the notes hands the selection to the AI assistant
+  const handleExplain = useCallback((text, context) => {
+    setExplainRequest({ text, context });
+    setActiveTab('ai');
+  }, []);
+  const handleExplainHandled = useCallback(() => setExplainRequest(null), []);
 
   if (loading) {
     return (
@@ -376,9 +386,19 @@ export default function WorkspacePage() {
               spaceId={spaceId}
               initialNotes={space.notesContent || ''}
               onHighlight={handleNotesHighlight}
+              onExplain={handleExplain}
             />
           </div>
-          {centerTab !== 'notes' && <div className="flex-1 min-h-0">{renderPanel()}</div>}
+          {/* Kept mounted too, so answers, a quiz in progress and pending
+              requests are not lost when switching tabs */}
+          <div className={centerTab === 'ai' ? 'flex-1 min-h-0' : 'hidden'}>
+            <AIPanel
+              spaceId={spaceId}
+              explainRequest={explainRequest}
+              onExplainHandled={handleExplainHandled}
+            />
+          </div>
+          {centerTab !== 'notes' && centerTab !== 'ai' && <div className="flex-1 min-h-0">{renderPanel()}</div>}
         </div>
 
         {/* Right Sidebar — Chat Panel (desktop only). Exactly one ChatPanel is

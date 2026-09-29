@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* `prose` styles for AI answers, which arrive as markdown */
+@plugin "@tailwindcss/typography";
 
 @theme {
   --color-background: hsl(0 0% 100%);

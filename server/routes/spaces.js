@@ -26,6 +26,7 @@ const {
 } = require('../controllers/highlightController');
 const { getActivity } = require('../controllers/activityController');
 const { getVersions, getVersion, restoreVersion } = require('../controllers/snapshotController');
+const aiRoutes = require('./ai');
 const { protect } = require('../middleware/auth');
 const { requireMember, requireOwner } = require('../middleware/space');
 const { apiLimiter, uploadLimiter, emailLimiter } = require('../middleware/rateLimiter');
@@ -105,5 +106,9 @@ router.get('/:spaceId/versions/:version', requireMember, getVersion);
 // Any member may restore: members can already edit the notes, and a restore is
 // itself undoable by restoring the version saved just before it.
 router.post('/:spaceId/versions/:version/restore', requireMember, restoreVersion);
+
+// ---------- AI study assistant ----------
+// Summaries, quizzes, explanations, revision notes and Q&A (routes/ai.js)
+router.use('/:spaceId/ai', aiRoutes);
 
 module.exports = router;

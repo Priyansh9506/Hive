@@ -54,4 +54,18 @@ const emailLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-module.exports = { authLimiter, apiLimiter, uploadLimiter, emailLimiter };
+// Every AI request spends the shared Gemini quota, so each member gets their
+// own budget rather than one busy study group locking out everyone behind an IP.
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  keyGenerator: (req, res) => (req.user?.id ? `user:${req.user.id}` : ipKeyGenerator(req, res)),
+  message: {
+    success: false,
+    message: 'AI assistant limit reached. Please wait a few minutes before asking again.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+module.exports = { authLimiter, apiLimiter, uploadLimiter, emailLimiter, aiLimiter };

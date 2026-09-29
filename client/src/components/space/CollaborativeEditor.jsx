@@ -7,15 +7,20 @@ import QuillCursors from 'quill-cursors';
 import 'quill/dist/quill.snow.css';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../lib/api';
-import { Cloud, CheckCircle2, Loader2, Save, Wifi, WifiOff, Highlighter, Users, ShieldAlert } from 'lucide-react';
+import { Cloud, CheckCircle2, Loader2, Save, Wifi, WifiOff, Highlighter, Users, ShieldAlert, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 Quill.register('modules/cursors', QuillCursors);
 
-export default function CollaborativeEditor({ spaceId, initialNotes = '', onHighlight }) {
+// Notes on either side of a selection sent with "Explain", so the explanation
+// fits the topic (e.g. "mole" in chemistry notes)
+const EXPLAIN_CONTEXT_CHARS = 1500;
+
+export default function CollaborativeEditor({ spaceId, initialNotes = '', onHighlight, onExplain }) {
   const containerRef = useRef(null);
   const editorInstanceRef = useRef(null);
   const saveTimeoutRef = useRef(null);
+  const selectionRangeRef = useRef(null); // last non-empty selection, for "Explain"
   const { user } = useAuth();
 
   const [status, setStatus] = useState('connecting');
@@ -40,6 +45,20 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
       setSaveStatus('error');
     }
   }, [spaceId]);
+
+  // Send the selection to the AI assistant along with the notes around it
+  const handleExplain = () => {
+    const editor = editorInstanceRef.current;
+    const range = selectionRangeRef.current;
+    if (!editor || !range) return;
+
+    const text = editor.getText(range.index, range.length).trim();
+    if (!text) return;
+
+    const start = Math.max(0, range.index - EXPLAIN_CONTEXT_CHARS);
+    const context = editor.getText(start, range.index + range.length + EXPLAIN_CONTEXT_CHARS - start).trim();
+    onExplain(text, context);
+  };
 
   // Manual save handler
   const handleManualSave = () => {
@@ -170,9 +189,13 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
 
     editor.on('text-change', handleTextChange);
 
-    // Track the selected text so "Highlight selection" knows what to capture
+    // Track the selected text so "Highlight" and "Explain" know what to capture.
+    // A null range means the editor lost focus, e.g. to one of those buttons,
+    // not that the selection went away, so the last one is kept for the click.
     const handleSelectionChange = (range) => {
-      setSelection(range && range.length > 0 ? editor.getText(range.index, range.length).trim() : '');
+      if (!range) return;
+      selectionRangeRef.current = range.length > 0 ? range : null;
+      setSelection(range.length > 0 ? editor.getText(range.index, range.length).trim() : '');
     };
     editor.on('selection-change', handleSelectionChange);
 
@@ -267,6 +290,19 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
             >
               <Highlighter size={13} />
               <span className="hidden sm:inline">Highlight</span>
+            </button>
+          )}
+
+          {/* Ask the AI assistant to explain the selection simply */}
+          {onExplain && (
+            <button
+              onClick={handleExplain}
+              disabled={!selection}
+              className="text-xs px-2.5 py-1 rounded-md bg-white hover:bg-violet-50 active:bg-violet-100 border border-gray-300 text-gray-700 font-medium transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title={selection ? 'Explain the selected text simply' : 'Select some text in the notes first'}
+            >
+              <Sparkles size={13} className="text-violet-500" />
+              <span className="hidden sm:inline">Explain</span>
             </button>
           )}
 

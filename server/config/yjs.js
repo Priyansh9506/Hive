@@ -1,7 +1,7 @@
 const WebSocket = require('ws');
 const Y = require('yjs');
 const jwt = require('jsonwebtoken');
-const { setupWSConnection, setPersistence, getYDoc } = require('y-websocket/bin/utils');
+const { setupWSConnection, setPersistence, getYDoc, docs } = require('y-websocket/bin/utils');
 const StudySpace = require('../models/StudySpace');
 const Membership = require('../models/Membership');
 const User = require('../models/User');
@@ -240,6 +240,51 @@ const restoreSnapshot = async (spaceId, snapshotState, user) => {
   await writeState(docName, ydoc);
 };
 
+/**
+ * Current shared notes of a space as plain text, for server-side readers such
+ * as the AI assistant. Prefers the live in-memory doc, which holds edits that
+ * are not saved yet; otherwise decodes the stored state. Reads never create a
+ * doc, since y-websocket only frees one when its last client disconnects.
+ *
+ * @param {string} spaceId
+ * @returns {Promise<string>}
+ */
+const getNotesText = async (spaceId) => {
+  const docName = docNameFor(spaceId);
+
+  const live = docs.get(docName);
+  if (live) {
+    await loading.get(docName);
+    return previewOf(live);
+  }
+
+  const space = await StudySpace.findById(spaceId).select('+notesState');
+  if (!space) return '';
+
+  if (space.notesState?.length) {
+    const ydoc = new Y.Doc();
+    try {
+      Y.applyUpdate(ydoc, new Uint8Array(space.notesState));
+      return previewOf(ydoc);
+    } finally {
+      ydoc.destroy();
+    }
+  }
+
+  // Spaces from before Yjs persistence only have the HTML copy
+  return (space.notesContent || '')
+    .replace(/<\/(p|h[1-6]|li|div|pre|blockquote)>|<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};
+
 const initYjs = (server) => {
   const wss = new WebSocket.Server({ noServer: true });
 
@@ -279,4 +324,4 @@ const initYjs = (server) => {
   console.log('Yjs WebSocket server initialized on /yjs (authenticated, persisted to MongoDB)');
 };
 
-module.exports = { initYjs, restoreSnapshot };
+module.exports = { initYjs, restoreSnapshot, getNotesText };

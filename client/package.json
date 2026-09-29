@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.3.3",
+    "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4.3.3",
     "autoprefixer": "^10.6.1",
     "axios": "^1.20.0",
@@ -22,8 +23,10 @@
     "react-dom": "^19.2.8",
     "react-easy-crop": "^6.2.3",
     "react-hot-toast": "^2.6.1",
+    "react-markdown": "^10.1.0",
     "react-quill-new": "^3.8.3",
     "react-router-dom": "^7.18.4",
+    "remark-gfm": "^4.0.1",
     "socket.io-client": "^4.8.3",
     "tailwindcss": "^4.3.3",
     "y-quill": "^1.0.0",
