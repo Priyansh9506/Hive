@@ -106,6 +106,16 @@ const startServer = async () => {
 
   server.listen(PORT, () => {
     console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+
+    // Self-ping to keep Render free tier alive (runs every 5 minutes)
+    if (process.env.NODE_ENV === 'production' && process.env.SERVER_URL) {
+      setInterval(() => {
+        const url = `${process.env.SERVER_URL}/api/health`;
+        fetch(url)
+          .then(res => console.log(`[Self-Ping] Successfully pinged ${url} - Status: ${res.status}`))
+          .catch(err => console.error(`[Self-Ping] Error pinging ${url}:`, err.message));
+      }, 5 * 60 * 1000); // 5 minutes
+    }
   });
 };
 

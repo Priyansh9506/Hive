@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useSocket, useSocketStatus } from '../context/SocketContext';
 import api from '../lib/api';
+import { gsap, useGSAP, prefersReducedMotion, CLEAR } from '../lib/motion';
 
 const DESKTOP_QUERY = '(min-width: 768px)'; // Tailwind `md`
 // Batch "I've read up to here" writes while messages keep arriving
@@ -63,6 +64,8 @@ export default function WorkspacePage() {
   const [explainRequest, setExplainRequest] = useState(null); // { text, context } from the editor
   const [unread, setUnread] = useState(0);
   const markReadTimer = useRef(null);
+  const centerRef = useRef(null);
+  const chatSidebarRef = useRef(null);
 
   // The deep link has been read into state; drop it so a refresh does not replay it
   useEffect(() => {
@@ -227,6 +230,32 @@ export default function WorkspacePage() {
   }, []);
   const handleExplainHandled = useCallback(() => setExplainRequest(null), []);
 
+  // ---------- Motion ----------
+  // Switching tabs eases the newly shown panel in. The first panel is left to
+  // the page transition, so the two do not stack.
+  const shownTab = useRef(null);
+  useGSAP(
+    () => {
+      const previous = shownTab.current;
+      shownTab.current = centerTab;
+      if (previous === null || previous === centerTab || prefersReducedMotion()) return;
+
+      const panel = centerRef.current?.querySelector(':scope > :not(.hidden)');
+      if (!panel) return;
+      gsap.fromTo(panel, { autoAlpha: 0, y: 8 }, { autoAlpha: 1, y: 0, duration: 0.3, overwrite: true, clearProps: CLEAR });
+    },
+    { dependencies: [centerTab] }
+  );
+
+  // Reopening the chat slides it in from the edge it lives on
+  useGSAP(
+    () => {
+      if (!chatOpen || !chatSidebarRef.current || prefersReducedMotion()) return;
+      gsap.fromTo(chatSidebarRef.current, { autoAlpha: 0, x: 24 }, { autoAlpha: 1, x: 0, duration: 0.35, clearProps: CLEAR });
+    },
+    { dependencies: [chatOpen] }
+  );
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-500 gap-2">
@@ -378,7 +407,7 @@ export default function WorkspacePage() {
         </div>
 
         {/* Center Content */}
-        <div className="flex-1 p-2 sm:p-4 md:p-6 overflow-hidden flex flex-col min-w-0">
+        <div ref={centerRef} className="flex-1 p-2 sm:p-4 md:p-6 overflow-hidden flex flex-col min-w-0">
           {/* The editor stays mounted while other panels are shown, so its live
               connection, cursor presence and unsaved edits survive a tab switch */}
           <div className={centerTab === 'notes' ? 'flex-1 min-h-0 flex flex-col' : 'hidden'}>
@@ -404,7 +433,7 @@ export default function WorkspacePage() {
         {/* Right Sidebar — Chat Panel (desktop only). Exactly one ChatPanel is
             ever mounted, so there is one set of chat listeners per page. */}
         {isDesktop && chatOpen && (
-          <div className="flex w-80 lg:w-96 shrink-0 border-l p-2">
+          <div ref={chatSidebarRef} className="flex w-80 lg:w-96 shrink-0 border-l p-2">
             <div className="w-full">{chatPanel}</div>
           </div>
         )}

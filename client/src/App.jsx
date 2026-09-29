@@ -9,6 +9,7 @@ import ProfilePage from './pages/ProfilePage';
 import JoinPage from './pages/JoinPage';
 import SearchPage from './pages/SearchPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import RouteTransition from './components/motion/RouteTransition';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 
@@ -27,6 +28,7 @@ function App() {
       <SocketProvider>
         <Router>
           <Toaster position="top-right" />
+          <RouteTransition>
           <Routes>
             <Route path="/" element={<LandingPage />} />
 
@@ -52,6 +54,7 @@ function App() {
               <Route path="/profile" element={<ProfilePage />} />
             </Route>
           </Routes>
+          </RouteTransition>
         </Router>
       </SocketProvider>
     </AuthProvider>

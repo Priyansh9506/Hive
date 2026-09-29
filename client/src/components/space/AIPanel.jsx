@@ -7,6 +7,9 @@ import toast from 'react-hot-toast';
 import { Button } from '../ui/Button';
 import Markdown from '../ui/Markdown';
 import { aiApi, aiErrorMessage } from '../../lib/ai';
+import Reveal from '../motion/Reveal';
+import { useReveal } from '../../hooks/useReveal';
+import { gsap, useGSAP, prefersReducedMotion } from '../../lib/motion';
 
 const TOOLS = [
   { id: 'ask', label: 'Ask', icon: MessageCircleQuestion },
@@ -88,16 +91,16 @@ function Thinking({ label = 'Thinking...' }) {
 function ErrorNote({ message }) {
   if (!message) return null;
   return (
-    <div className="flex items-start gap-2 text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+    <Reveal y={6} className="flex items-start gap-2 text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
       <CircleAlert size={15} className="mt-0.5 shrink-0" />
       <span>{message}</span>
-    </div>
+    </Reveal>
   );
 }
 
 function ResultCard({ title, meta, markdown }) {
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
+    <Reveal className="border border-gray-200 rounded-lg overflow-hidden">
       <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-gray-50 border-b">
         <div className="text-xs text-gray-500 truncate">
           <span className="font-semibold text-gray-700">{title}</span>
@@ -108,7 +111,7 @@ function ResultCard({ title, meta, markdown }) {
       <div className="p-4">
         <Markdown>{markdown}</Markdown>
       </div>
-    </div>
+    </Reveal>
   );
 }
 
@@ -121,6 +124,10 @@ function AskTool({ spaceId }) {
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
+  const threadRef = useRef(null);
+
+  // Each question, answer and error eases in as it is added to the conversation
+  useReveal(threadRef, { selector: '[data-reveal]', deps: [thread], y: 10 });
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -153,7 +160,7 @@ function AskTool({ spaceId }) {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div ref={threadRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {thread.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center h-full px-6 py-10">
             <MessageCircleQuestion size={26} className="text-violet-300 mb-2" />
@@ -166,13 +173,13 @@ function AskTool({ spaceId }) {
         ) : (
           thread.map((t) => (
             <div key={t.id} className="space-y-2">
-              <div className="flex justify-end">
+              <div data-reveal className="flex justify-end">
                 <p className="max-w-[85%] bg-blue-600 text-white text-sm rounded-2xl rounded-br-sm px-3.5 py-2 whitespace-pre-wrap">
                   {t.question}
                 </p>
               </div>
               {t.answer && (
-                <div className="max-w-[95%] bg-gray-50 border border-gray-200 rounded-2xl rounded-bl-sm px-4 py-3">
+                <div data-reveal className="max-w-[95%] bg-gray-50 border border-gray-200 rounded-2xl rounded-bl-sm px-4 py-3">
                   <Markdown>{t.answer}</Markdown>
                   {!t.usedNotes && (
                     <p className="text-[11px] text-gray-400 mt-2">The shared notes are empty, so this is a general answer.</p>
@@ -252,9 +259,24 @@ function SummarizeTool({ spaceId }) {
 
 function QuizQuestion({ index, question, chosen, onChoose }) {
   const answered = chosen !== undefined;
+  const cardRef = useRef(null);
+
+  // Answering gets physical feedback: a small pop when right, a shake when wrong
+  useGSAP(
+    () => {
+      if (!answered || prefersReducedMotion()) return;
+      const option = cardRef.current.querySelector(`[data-option="${chosen}"]`);
+      if (chosen === question.answerIndex) {
+        gsap.fromTo(option, { scale: 1 }, { scale: 1.03, duration: 0.15, yoyo: true, repeat: 1, ease: 'power2.out', clearProps: 'transform' });
+      } else {
+        gsap.fromTo(option, { x: 0 }, { keyframes: { x: [-6, 6, -4, 4, 0] }, duration: 0.4, ease: 'power1.inOut', clearProps: 'transform' });
+      }
+    },
+    { dependencies: [chosen], scope: cardRef }
+  );
 
   return (
-    <div className="border border-gray-200 rounded-lg p-4">
+    <div ref={cardRef} data-quiz-question className="border border-gray-200 rounded-lg p-4">
       <p className="text-sm font-semibold text-gray-900 mb-3">
         {index + 1}. {question.question}
       </p>
@@ -271,6 +293,7 @@ function QuizQuestion({ index, question, chosen, onChoose }) {
           return (
             <button
               key={i}
+              data-option={i}
               onClick={() => onChoose(i)}
               disabled={answered}
               className={`w-full text-left text-sm border rounded-lg px-3 py-2 flex items-start gap-2 transition-colors disabled:cursor-default ${tone}`}
@@ -284,10 +307,10 @@ function QuizQuestion({ index, question, chosen, onChoose }) {
         })}
       </div>
       {answered && question.explanation && (
-        <p className="text-xs text-gray-600 bg-gray-50 rounded-md px-3 py-2 mt-3 leading-relaxed">
+        <Reveal y={6} className="text-xs text-gray-600 bg-gray-50 rounded-md px-3 py-2 mt-3 leading-relaxed">
           <span className="font-semibold">{chosen === question.answerIndex ? 'Correct. ' : 'Not quite. '}</span>
           {question.explanation}
-        </p>
+        </Reveal>
       )}
     </div>
   );
@@ -298,6 +321,10 @@ function QuizTool({ spaceId }) {
   const [source, setSource] = useState('notes'); // 'notes' | 'custom'
   const [customText, setCustomText] = useState('');
   const [answers, setAnswers] = useState({}); // question index -> chosen option
+  const quizRef = useRef(null);
+
+  // A fresh quiz deals its questions in one after another
+  useReveal(quizRef, { selector: '[data-quiz-question]', deps: [quiz, loading], y: 16, stagger: 0.08 });
 
   const generate = async () => {
     const data = await run(() => aiApi.quiz(spaceId, source === 'custom' ? customText : undefined));
@@ -310,7 +337,7 @@ function QuizTool({ spaceId }) {
     const done = answeredCount === quiz.questions.length;
 
     return (
-      <div className="p-4 space-y-4 overflow-y-auto h-full">
+      <div ref={quizRef} className="p-4 space-y-4 overflow-y-auto h-full">
         <div className="flex items-center justify-between gap-2">
           <div>
             <h4 className="font-semibold text-gray-900">{quiz.title}</h4>
@@ -331,7 +358,7 @@ function QuizTool({ spaceId }) {
         </div>
 
         {done && (
-          <div className={`text-sm rounded-lg px-4 py-3 border ${
+          <Reveal className={`text-sm rounded-lg px-4 py-3 border ${
             score === quiz.questions.length
               ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
               : 'bg-violet-50 border-violet-200 text-violet-800'
@@ -339,7 +366,7 @@ function QuizTool({ spaceId }) {
             {score === quiz.questions.length
               ? 'Perfect score! You know this material well.'
               : 'Review the explanations above for the ones you missed, then retry.'}
-          </div>
+          </Reveal>
         )}
 
         {quiz.questions.map((q, i) => (
@@ -508,6 +535,20 @@ function RevisionTool({ spaceId }) {
  */
 export default function AIPanel({ spaceId, explainRequest, onExplainHandled }) {
   const [tool, setTool] = useState('ask');
+  const toolsRef = useRef(null);
+  const shownTool = useRef(tool);
+
+  // Switching tools eases the newly shown one in
+  useGSAP(
+    () => {
+      if (shownTool.current === tool) return;
+      shownTool.current = tool;
+      if (prefersReducedMotion()) return;
+      const panel = toolsRef.current?.querySelector(':scope > :not(.hidden)');
+      if (panel) gsap.fromTo(panel, { autoAlpha: 0, y: 6 }, { autoAlpha: 1, y: 0, duration: 0.25, overwrite: true, clearProps: 'transform,opacity,visibility' });
+    },
+    { dependencies: [tool] }
+  );
 
   // A request from the editor always lands on the Explain tool
   const [seenRequest, setSeenRequest] = useState(null);
@@ -545,7 +586,7 @@ export default function AIPanel({ spaceId, explainRequest, onExplainHandled }) {
       </div>
 
       {/* Every tool stays mounted so its input and results survive switching */}
-      <div className="flex-1 min-h-0">
+      <div ref={toolsRef} className="flex-1 min-h-0">
         <div className={tool === 'ask' ? 'h-full' : 'hidden'}><AskTool spaceId={spaceId} /></div>
         <div className={tool === 'summarize' ? 'h-full' : 'hidden'}><SummarizeTool spaceId={spaceId} /></div>
         <div className={tool === 'quiz' ? 'h-full' : 'hidden'}><QuizTool spaceId={spaceId} /></div>

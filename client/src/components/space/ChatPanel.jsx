@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Send, Loader2, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Highlighter } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
+import { gsap, useGSAP, prefersReducedMotion, CLEAR } from '../../lib/motion';
 
 // Generate a simple client-side unique ID for optimistic messages
 const clientMsgId = () => `client_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -40,6 +41,33 @@ export default function ChatPanel({ spaceId, userRole, onHighlight, jumpToMessag
   const [flashId, setFlashId] = useState(null);         // message briefly highlighted after a jump
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
+  // Messages already on screen, by an id that survives the optimistic →
+  // confirmed swap (the row is re-keyed then, and must not animate twice)
+  const shownMessages = useRef(new Set());
+  const historyShown = useRef(false);
+
+  // New messages slide in from their own side. History (the first load and
+  // older pages) appears as-is: animating dozens of rows would only delay reading.
+  useGSAP(
+    () => {
+      const root = messagesContainerRef.current;
+      if (!root || loadingHistory) return;
+
+      const rows = [...root.querySelectorAll('[data-chat-id]')];
+      const fresh = rows.filter((el) => !shownMessages.current.has(el.dataset.chatId));
+      fresh.forEach((el) => shownMessages.current.add(el.dataset.chatId));
+
+      const live = historyShown.current && fresh.length > 0 && fresh.length <= 3;
+      historyShown.current = true;
+      if (!live || prefersReducedMotion()) return;
+
+      fresh.forEach((el) => {
+        const own = el.dataset.own === 'true';
+        gsap.from(el, { autoAlpha: 0, x: own ? 16 : -16, y: 4, duration: 0.3, clearProps: CLEAR });
+      });
+    },
+    { dependencies: [messages, loadingHistory] }
+  );
   const typingTimeout = useRef(null);
   const isInitialLoad = useRef(true);
   // Read by the jump loop, which fetches several pages before React re-renders
@@ -416,6 +444,8 @@ export default function ChatPanel({ spaceId, userRole, onHighlight, jumpToMessag
               <div
                 key={msg._id || msg.clientId}
                 id={`msg-${msg._id}`}
+                data-chat-id={msg.clientId || msg._id}
+                data-own={isOwn}
                 className={`group flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}
               >
                 {!isOwn && (

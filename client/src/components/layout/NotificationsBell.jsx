@@ -4,6 +4,7 @@ import { Bell, CheckCheck, Loader2, LogIn, Mail, UserMinus, AtSign, X } from 'lu
 import toast from 'react-hot-toast';
 import { useSocket } from '../../context/SocketContext';
 import api from '../../lib/api';
+import { usePopIn } from '../../hooks/usePopIn';
 
 const TYPE_ICON = {
   invite_received: Mail,
@@ -31,6 +32,8 @@ export default function NotificationsBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const menuRef = useRef(null);
+  const panelRef = useRef(null);
+  usePopIn(panelRef, open);
 
   const load = useCallback(async () => {
     try {
@@ -128,7 +131,7 @@ export default function NotificationsBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-12 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-lg border z-50 overflow-hidden">
+        <div ref={panelRef} className="absolute right-0 top-12 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-lg border z-50 overflow-hidden">
           <div className="px-4 py-2.5 border-b flex items-center justify-between">
             <p className="text-sm font-semibold text-gray-800">Notifications</p>
             {unreadCount > 0 && (

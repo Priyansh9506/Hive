@@ -9,6 +9,7 @@ import { EditSpaceModal } from '../components/space/EditSpaceModal';
 import { DeleteSpaceModal } from '../components/space/DeleteSpaceModal';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
+import { useReveal } from '../hooks/useReveal';
 
 const ICON_MAP = {
   book: Book,
@@ -77,6 +78,10 @@ export default function DashboardPage() {
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [editingSpace, setEditingSpace] = useState(null);
   const [deletingSpace, setDeletingSpace] = useState(null);
+  const gridRef = useRef(null);
+
+  // Cards rise in once loaded; a newly created or joined space animates on its own
+  useReveal(gridRef, { deps: [loading, spaces.length], y: 18, stagger: 0.07 });
 
   useEffect(() => {
     const fetchSpaces = async () => {
@@ -157,13 +162,13 @@ export default function DashboardPage() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div ref={gridRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {spaces.map((space) => {
               const spaceColor = space.color || '#6366f1';
               const IconComp = ICON_MAP[space.icon] || Book;
 
               return (
-                <Card key={space._id || space.id} className="hover:shadow-lg transition-all group flex flex-col h-full overflow-hidden border-0 shadow-md">
+                <Card key={space._id || space.id} className="hover:shadow-lg transition-shadow group flex flex-col h-full overflow-hidden border-0 shadow-md">
                   {/* Colored header band with icon */}
                   <div
                     className="px-5 py-4 flex items-center justify-between"

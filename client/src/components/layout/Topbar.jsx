@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { LogOut, BookOpen, Search, User as UserIcon } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import NotificationsBell from './NotificationsBell';
+import { usePopIn } from '../../hooks/usePopIn';
 
 export default function Topbar() {
   const { user, logout } = useAuth();
@@ -10,6 +11,8 @@ export default function Topbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const menuRef = useRef(null);
+  const dropdownRef = useRef(null);
+  usePopIn(dropdownRef, dropdownOpen);
 
   // Keep the box in step with the search page's query, so it reads as the
   // same search rather than a blank field
@@ -95,7 +98,7 @@ export default function Topbar() {
               </button>
   
               {dropdownOpen && (
-                <div className="absolute right-0 top-12 mt-2 w-48 bg-white rounded-md shadow-lg py-1 border ring-1 ring-black ring-opacity-5">
+                <div ref={dropdownRef} className="absolute right-0 top-12 mt-2 w-48 bg-white rounded-md shadow-lg py-1 border ring-1 ring-black ring-opacity-5">
                   <div className="px-4 py-2 border-b">
                     <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
                     <p className="text-xs text-gray-500 truncate">{user?.email}</p>
