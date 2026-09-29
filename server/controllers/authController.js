@@ -68,6 +68,14 @@ const login = async (req, res, next) => {
       });
     }
 
+    // Created through Google sign-in: there is no password to check
+    if (!user.password) {
+      return res.status(401).json({
+        success: false,
+        message: 'This account uses Google sign-in. Please continue with Google.',
+      });
+    }
+
     // Verify password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
@@ -198,6 +206,13 @@ const changePassword = async (req, res, next) => {
 
     const user = await User.findById(req.user.id).select('+password');
 
+    if (!user.password) {
+      return res.status(400).json({
+        success: false,
+        message: 'This account signs in with Google, so it has no password to change',
+      });
+    }
+
     const isMatch = await bcrypt.compare(currentPassword, user.password);
     if (!isMatch) {
       return res.status(401).json({
@@ -259,4 +274,95 @@ const uploadAvatar = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login, getMe, logout, updateProfile, changePassword, uploadAvatar };
+let googleClient = null;
+
+// @desc    Sign in (or sign up) with Google
+// @route   POST /api/auth/google
+// @body    { credential } — the ID token from Google Identity Services on the client
+// @access  Public
+//
+// The client never sends identity details of its own: everything comes from
+// the ID token, which is checked against Google's keys and this app's client
+// id. The response is the same `{ token, user }` as password login.
+const googleLogin = async (req, res, next) => {
+  try {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      return res.status(503).json({
+        success: false,
+        message: 'Google sign-in is not configured on this server',
+      });
+    }
+
+    const { credential } = req.body;
+    if (typeof credential !== 'string' || !credential) {
+      return res.status(400).json({ success: false, message: 'Missing Google credential' });
+    }
+
+    if (!googleClient) {
+      const { OAuth2Client } = require('google-auth-library');
+      googleClient = new OAuth2Client(clientId);
+    }
+
+    let payload;
+    try {
+      // Checks the signature, expiry, issuer, and that it was issued for this app
+      const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: clientId });
+      payload = ticket.getPayload();
+    } catch (err) {
+      console.warn('Google sign-in: token rejected:', err.message);
+      return res.status(401).json({ success: false, message: 'Google sign-in failed. Please try again.' });
+    }
+
+    const { sub: googleId, email, email_verified: emailVerified, name, picture } = payload;
+
+    // Linking on email is only safe when Google vouches for the address
+    if (!email || !emailVerified) {
+      return res.status(401).json({
+        success: false,
+        message: 'Your Google account email is not verified',
+      });
+    }
+
+    let user = await User.findOne({ googleId });
+
+    if (!user) {
+      user = await User.findOne({ email: email.toLowerCase() });
+
+      if (user) {
+        // Existing password account with the same verified email: link it, so
+        // the member keeps their spaces instead of getting a second account
+        user.googleId = googleId;
+        if (!user.avatarUrl && picture) user.avatarUrl = picture;
+        await user.save();
+      } else {
+        user = await User.create({
+          name: (name || email.split('@')[0]).trim().slice(0, 50),
+          email: email.toLowerCase(),
+          googleId,
+          avatarUrl:
+            picture ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(name || email)}&background=random`,
+        });
+      }
+    }
+
+    const token = generateToken(user._id);
+
+    res.status(200).json({
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { register, login, getMe, logout, updateProfile, changePassword, uploadAvatar, googleLogin };

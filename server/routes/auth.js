@@ -1,5 +1,5 @@
 const express = require('express');
-const { register, login, getMe, logout, updateProfile, changePassword, uploadAvatar } = require('../controllers/authController');
+const { register, login, getMe, logout, updateProfile, changePassword, uploadAvatar, googleLogin } = require('../controllers/authController');
 const { protect } = require('../middleware/auth');
 const { validate, registerRules, loginRules } = require('../middleware/validate');
 const { authLimiter } = require('../middleware/rateLimiter');
@@ -10,6 +10,7 @@ const router = express.Router();
 // Public routes (rate-limited)
 router.post('/register', authLimiter, registerRules, validate, register);
 router.post('/login', authLimiter, loginRules, validate, login);
+router.post('/google', authLimiter, googleLogin);
 
 // Protected routes
 router.get('/me', protect, getMe);

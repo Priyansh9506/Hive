@@ -73,7 +73,14 @@ export default function Topbar() {
               >
                 {user?.avatarUrl ? (
                   <img
-                    src={(import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '') + user.avatarUrl}
+                    // Uploaded avatars live on the API server; Google and default
+                    // avatars are already full URLs
+                    src={
+                      user.avatarUrl.startsWith('/uploads/')
+                        ? (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '') + user.avatarUrl
+                        : user.avatarUrl
+                    }
+                    referrerPolicy="no-referrer"
                     alt="Profile"
                     className="h-8 w-8 rounded-full object-cover shadow-sm border border-gray-200"
                   />

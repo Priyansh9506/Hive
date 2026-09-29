@@ -53,6 +53,15 @@ export const AuthProvider = ({ children }) => {
     return userData;
   };
 
+  // `credential` is the ID token Google Identity Services hands the page
+  const loginWithGoogle = async (credential) => {
+    const response = await api.post('/auth/google', { credential });
+    const { token, user: userData } = response.data;
+    localStorage.setItem('token', token);
+    setUser(userData);
+    return userData;
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
@@ -65,6 +74,7 @@ export const AuthProvider = ({ children }) => {
     isLoading,
     login,
     register,
+    loginWithGoogle,
     logout,
     isAuthenticated: !!user,
   };
