@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Topbar from '../components/layout/Topbar';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
-import { Plus, Users, ArrowRight, MoreVertical, Pencil, Trash2, Book, Code, FlaskConical, Calculator, PenLine, Globe, Lightbulb, Music, Palette, Rocket, Brain, GraduationCap } from 'lucide-react';
+import { Plus, Users, ArrowRight, MessageSquare, MoreVertical, Pencil, Trash2, Book, Code, FlaskConical, Calculator, PenLine, Globe, Lightbulb, Music, Palette, Rocket, Brain, GraduationCap } from 'lucide-react';
 import { CreateSpaceModal } from '../components/space/CreateSpaceModal';
 import { JoinSpaceModal } from '../components/space/JoinSpaceModal';
 import { EditSpaceModal } from '../components/space/EditSpaceModal';
@@ -198,6 +198,14 @@ export default function DashboardPage() {
                         <span className="inline-flex items-center gap-1 text-xs font-medium bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
                           <Users size={12} /> {space.membersCount}
                         </span>
+                        {space.unreadCount > 0 && (
+                          <span
+                            className="inline-flex items-center gap-1 text-xs font-medium bg-rose-50 text-rose-700 px-2 py-1 rounded-full"
+                            title="Messages since you last read the discussion"
+                          >
+                            <MessageSquare size={12} /> {space.unreadCount > 99 ? '99+' : space.unreadCount} new
+                          </span>
+                        )}
                         <span className="text-xs text-gray-400">
                           {new Date(space.createdAt).toLocaleDateString()}
                         </span>

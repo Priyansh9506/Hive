@@ -1,5 +1,6 @@
 const fs = require('fs/promises');
 const path = require('path');
+const mongoose = require('mongoose');
 const StudySpace = require('../models/StudySpace');
 const Membership = require('../models/Membership');
 const Message = require('../models/Message');
@@ -12,6 +13,7 @@ const Notification = require('../models/Notification');
 const User = require('../models/User');
 const logActivity = require('../utils/logActivity');
 const notify = require('../utils/notify');
+const { getIo } = require('../config/socket');
 const { generateJoinCode, normalizeJoinCode } = require('../utils/joinCode');
 
 // @desc    Create a new study space
@@ -78,10 +80,30 @@ const getSpaces = async (req, res, next) => {
     ]);
     const countBySpace = new Map(counts.map((c) => [String(c._id), c.count]));
 
+    // Unread = messages from other people since this member last read the
+    // discussion (or since they joined). Also one grouped query for all spaces.
+    const unread = live.length
+      ? await Message.aggregate([
+          {
+            $match: {
+              $or: live.map((m) => ({
+                spaceId: m.spaceId._id,
+                createdAt: { $gt: m.lastReadAt || m.createdAt },
+              })),
+              senderId: { $ne: new mongoose.Types.ObjectId(req.user.id) },
+              deletedAt: null,
+            },
+          },
+          { $group: { _id: '$spaceId', count: { $sum: 1 } } },
+        ])
+      : [];
+    const unreadBySpace = new Map(unread.map((u) => [String(u._id), u.count]));
+
     const spaces = live.map((membership) => {
       const spaceData = membership.spaceId.toObject();
       spaceData.membersCount = countBySpace.get(String(membership.spaceId._id)) || 1;
       spaceData.userRole = membership.role;
+      spaceData.unreadCount = unreadBySpace.get(String(membership.spaceId._id)) || 0;
       return spaceData;
     });
 
@@ -343,6 +365,12 @@ const deleteSpace = async (req, res, next) => {
       Membership.deleteMany({ spaceId: space._id }),
     ]);
     await StudySpace.findByIdAndDelete(space._id);
+
+    // Anyone with the workspace open is looking at a space that no longer exists
+    getIo().to(`space:${space._id}`).emit('space_deleted', {
+      spaceId: space._id,
+      name: space.name,
+    });
 
     res.status(200).json({
       success: true,

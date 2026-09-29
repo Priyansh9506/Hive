@@ -68,6 +68,12 @@ export default function MembersPanel({ spaceId, userRole, onLeft }) {
     socket.on('user_left', handleLeft);
     socket.on('member_removed', handleRemoved);
 
+    // The workspace joined the room before this panel mounted, so the
+    // presence_state sent on join has already gone by — ask for it now
+    socket.emit('presence_request', spaceId, ({ online: list } = {}) => {
+      if (list) setOnline(list.map((u) => String(u.userId)));
+    });
+
     return () => {
       socket.off('presence_state', handlePresence);
       socket.off('user_joined', handleJoined);

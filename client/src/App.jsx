@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
@@ -6,15 +6,19 @@ import SignupPage from './pages/SignupPage';
 import DashboardPage from './pages/DashboardPage';
 import WorkspacePage from './pages/WorkspacePage';
 import ProfilePage from './pages/ProfilePage';
+import JoinPage from './pages/JoinPage';
+import SearchPage from './pages/SearchPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 
-// Simple wrapper to redirect to dashboard if already logged in
+// Redirect away from login/signup once signed in — back to wherever the user
+// was headed (an invite link sends them here with `state.from`).
 const PublicRoute = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
   if (isLoading) return null;
-  return isAuthenticated ? <Navigate to="/dashboard" replace /> : children;
+  return isAuthenticated ? <Navigate to={location.state?.from || '/dashboard'} replace /> : children;
 };
 
 function App() {
@@ -25,7 +29,7 @@ function App() {
           <Toaster position="top-right" />
           <Routes>
             <Route path="/" element={<LandingPage />} />
-            
+
             <Route path="/login" element={
               <PublicRoute>
                 <LoginPage />
@@ -37,10 +41,14 @@ function App() {
               </PublicRoute>
             } />
 
+            {/* Invite links work signed out too: the page asks the visitor to sign in */}
+            <Route path="/join/:code" element={<JoinPage />} />
+
             {/* Protected Routes */}
             <Route element={<ProtectedRoute />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/spaces/:id" element={<WorkspacePage />} />
+              <Route path="/search" element={<SearchPage />} />
               <Route path="/profile" element={<ProfilePage />} />
             </Route>
           </Routes>

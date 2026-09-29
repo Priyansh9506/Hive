@@ -9,7 +9,7 @@ const {
   deleteSpace,
   updateNotes,
 } = require('../controllers/spaceController');
-const { getMessages, updateMessage, deleteMessage } = require('../controllers/messageController');
+const { getMessages, updateMessage, deleteMessage, markRead } = require('../controllers/messageController');
 const { getMembers, leaveSpace, removeMember } = require('../controllers/memberController');
 const {
   getInvite,
@@ -25,7 +25,7 @@ const {
   deleteHighlight,
 } = require('../controllers/highlightController');
 const { getActivity } = require('../controllers/activityController');
-const { getVersions, getVersion } = require('../controllers/snapshotController');
+const { getVersions, getVersion, restoreVersion } = require('../controllers/snapshotController');
 const { protect } = require('../middleware/auth');
 const { requireMember, requireOwner } = require('../middleware/space');
 const { apiLimiter, uploadLimiter, emailLimiter } = require('../middleware/rateLimiter');
@@ -71,6 +71,7 @@ router.post('/:spaceId/invites/email', requireMember, emailLimiter, sendEmailInv
 
 // ---------- Messages ----------
 router.get('/:spaceId/messages', requireMember, getMessages);
+router.post('/:spaceId/read', requireMember, markRead);
 router.route('/:spaceId/messages/:messageId')
   .patch(requireMember, updateMessage)
   .delete(requireMember, deleteMessage);
@@ -101,5 +102,8 @@ router.get('/:spaceId/activity', requireMember, getActivity);
 // ---------- Document versions ----------
 router.get('/:spaceId/versions', requireMember, getVersions);
 router.get('/:spaceId/versions/:version', requireMember, getVersion);
+// Any member may restore: members can already edit the notes, and a restore is
+// itself undoable by restoring the version saved just before it.
+router.post('/:spaceId/versions/:version/restore', requireMember, restoreVersion);
 
 module.exports = router;

@@ -28,6 +28,7 @@ const lastEditor = new Map(); // docName -> { id, name }
 const lastEditActivityAt = new Map(); // `${docName}:${userId}` -> ms timestamp
 
 const spaceIdFor = (docName) => docName.match(ROOM_PATTERN)?.[1];
+const docNameFor = (spaceId) => `studysync-room-${spaceId}`;
 
 // Plain-text preview of the shared notes, for identifying a version at a glance
 const previewOf = (ydoc) => ydoc.getText('quill').toString();
@@ -54,7 +55,7 @@ const writeState = (docName, ydoc) => {
  * Store a version of the document if the snapshot interval has elapsed.
  * Runs off the back of a state save, so it costs nothing while nobody is typing.
  */
-const maybeSnapshot = async (docName, ydoc) => {
+const maybeSnapshot = async (docName, ydoc, { force = false } = {}) => {
   const spaceId = spaceIdFor(docName);
   if (!spaceId) return;
 
@@ -63,7 +64,7 @@ const maybeSnapshot = async (docName, ydoc) => {
 
   // Claim the slot before awaiting, so two saves landing together cannot both
   // decide to snapshot.
-  if (previous && now - previous < SNAPSHOT_INTERVAL_MS) return;
+  if (!force && previous && now - previous < SNAPSHOT_INTERVAL_MS) return;
   lastSnapshotAt.set(docName, now);
 
   try {
@@ -77,8 +78,9 @@ const maybeSnapshot = async (docName, ydoc) => {
       .select('version charCount')
       .lean();
 
-    // Skip if the document has not actually changed since the last version
-    if (latest && latest.charCount === text.length) return;
+    // Skip if the document has not actually changed since the last version. A
+    // forced snapshot guards a restore, where a same-length edit must not be lost.
+    if (!force && latest && latest.charCount === text.length) return;
 
     const editor = lastEditor.get(docName);
     await DocumentSnapshot.create({
@@ -169,12 +171,16 @@ setPersistence({ bindState, writeState });
  */
 const authorizeUpgrade = async (request) => {
   const url = new URL(request.url, 'http://localhost');
-  const docName = url.pathname.slice(1); // strip the leading '/'
-  const spaceId = spaceIdFor(docName);
+  const spaceId = spaceIdFor(url.pathname);
 
   if (!spaceId) {
     return { ok: false, reason: 'Unknown document' };
   }
+
+  // Key the in-memory doc by space, not by the raw path (which carries the
+  // `/yjs` mount prefix), so server-side code such as restoreSnapshot finds
+  // the very doc that clients are connected to.
+  const docName = docNameFor(spaceId);
 
   const token = url.searchParams.get('token');
   if (!token) {
@@ -195,6 +201,43 @@ const authorizeUpgrade = async (request) => {
   } catch {
     return { ok: false, reason: 'Invalid or expired token' };
   }
+};
+
+/**
+ * Replace the live shared notes with a stored version (PRD §20 "restore").
+ *
+ * The change is applied to the server's copy of the document as an ordinary Yjs
+ * transaction, so y-websocket broadcasts it to every connected editor and the
+ * normal persistence path saves it. The current state is versioned first, which
+ * makes a restore itself undoable.
+ *
+ * @param {string}     spaceId
+ * @param {Uint8Array} snapshotState - encoded Yjs state of the version to restore
+ * @param {object}     user          - `{ id, name }` of the member restoring
+ */
+const restoreSnapshot = async (spaceId, snapshotState, user) => {
+  const docName = docNameFor(spaceId);
+  const ydoc = getYDoc(docName);
+  await loading.get(docName);
+
+  await maybeSnapshot(docName, ydoc, { force: true });
+
+  // Rebuild from the version's formatted content (a delta), not its plain text,
+  // so headings, lists and code blocks come back too.
+  const source = new Y.Doc();
+  Y.applyUpdate(source, snapshotState);
+  const delta = source.getText('quill').toDelta();
+  source.destroy();
+
+  lastEditor.set(docName, user);
+  const ytext = ydoc.getText('quill');
+  ydoc.transact(() => {
+    ytext.delete(0, ytext.length);
+    ytext.applyDelta(delta);
+  });
+
+  // Persist now rather than on the debounce, so the response means "saved"
+  await writeState(docName, ydoc);
 };
 
 const initYjs = (server) => {
@@ -236,4 +279,4 @@ const initYjs = (server) => {
   console.log('Yjs WebSocket server initialized on /yjs (authenticated, persisted to MongoDB)');
 };
 
-module.exports = { initYjs };
+module.exports = { initYjs, restoreSnapshot };

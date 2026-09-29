@@ -40,6 +40,7 @@ const activitySchema = new mongoose.Schema(
         'invite_sent',
         'invite_regenerated',
         'snapshot_created',
+        'snapshot_restored',
       ],
     },
     // Short human-readable line, e.g. "added DBMS notes"

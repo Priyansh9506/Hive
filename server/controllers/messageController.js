@@ -129,4 +129,19 @@ const deleteMessage = async (req, res, next) => {
   }
 };
 
-module.exports = { getMessages, updateMessage, deleteMessage };
+// @desc    Mark the discussion as read up to now
+// @route   POST /api/spaces/:spaceId/read
+// @access  Private (Member only)
+const markRead = async (req, res, next) => {
+  try {
+    const lastReadAt = new Date();
+    // req.membership was loaded by requireMember; update it in place
+    await req.membership.updateOne({ lastReadAt });
+
+    res.status(200).json({ success: true, lastReadAt });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getMessages, updateMessage, deleteMessage, markRead };

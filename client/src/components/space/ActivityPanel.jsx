@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Activity as ActivityIcon, FilePlus2, Highlighter, Loader2, LogIn, LogOut,
-  Mail, Pencil, Pin, RefreshCw, Settings, Sparkles, Trash2, UserMinus,
+  Mail, Pencil, Pin, RefreshCw, RotateCcw, Settings, Sparkles, Trash2, UserMinus,
 } from 'lucide-react';
 import { useSocket } from '../../context/SocketContext';
 import api from '../../lib/api';
@@ -22,6 +22,7 @@ const TYPE_ICON = {
   invite_sent: Mail,
   invite_regenerated: RefreshCw,
   snapshot_created: ActivityIcon,
+  snapshot_restored: RotateCcw,
 };
 
 // Group entries under Today / Yesterday / an explicit date, which is how the

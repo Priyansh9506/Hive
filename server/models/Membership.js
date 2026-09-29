@@ -17,6 +17,12 @@ const membershipSchema = new mongoose.Schema(
       enum: ['owner', 'member'],
       default: 'member',
     },
+    // When this member last caught up on the discussion; messages after it
+    // count as unread (PRD §14). Null means "since they joined".
+    lastReadAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

@@ -85,14 +85,16 @@ const initSocket = (server) => {
     // are viewing (invites, notifications, losing access to a space).
     socket.join(`user:${socket.user.id}`);
 
-    // Join a specific study space room
-    socket.on('join_space', async (spaceId) => {
+    // Join a specific study space room. The optional ack reports whether the
+    // join was allowed, so the workspace can tell "not a member" from a blip.
+    socket.on('join_space', async (spaceId, ack) => {
+      const reply = typeof ack === 'function' ? ack : () => {};
       try {
         // Verify membership before allowing room join
         const membership = await Membership.findOne({ spaceId, userId: socket.user.id });
         if (!membership) {
           socket.emit('error_msg', { message: 'Not a member of this space' });
-          return;
+          return reply({ ok: false, error: 'Not a member of this space' });
         }
 
         socket.join(`space:${spaceId}`);
@@ -105,10 +107,27 @@ const initSocket = (server) => {
         });
 
         // Send the joiner the full online list (this socket is already in the room)
-        socket.emit('presence_state', { spaceId, online: await presenceFor(spaceId) });
+        const online = await presenceFor(spaceId);
+        socket.emit('presence_state', { spaceId, online });
+        reply({ ok: true, online });
       } catch (err) {
         console.error('Error joining space:', err.message);
         socket.emit('error_msg', { message: 'Failed to join space' });
+        reply({ ok: false, error: 'Failed to join space' });
+      }
+    });
+
+    // Current online list on demand, for a panel that mounts after the join
+    // (and so missed the presence_state sent then). Only answered from inside
+    // the room, which is already membership-checked.
+    socket.on('presence_request', async (spaceId, ack) => {
+      if (typeof ack !== 'function') return;
+      if (!socket.rooms.has(`space:${spaceId}`)) return ack({ online: [] });
+      try {
+        ack({ online: await presenceFor(spaceId) });
+      } catch (err) {
+        console.error('Error reading presence:', err.message);
+        ack({ online: [] });
       }
     });
 

@@ -7,6 +7,24 @@ import { Card, CardContent } from '../components/ui/Card';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 
+// Declared outside the page so it is not a new component type on every render
+// (which would remount the card's contents each time state changes)
+const Shell = ({ children }) => (
+  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="w-full max-w-md">
+      <Link to="/" className="flex items-center justify-center gap-2 mb-6">
+        <div className="bg-primary/10 p-2 rounded-lg">
+          <BookOpen className="h-6 w-6 text-primary" />
+        </div>
+        <span className="text-xl font-bold text-gray-900">StudySync</span>
+      </Link>
+      <Card>
+        <CardContent className="p-6">{children}</CardContent>
+      </Card>
+    </div>
+  </div>
+);
+
 /**
  * Landing screen for an invite link (PRD §10.1): open StudySync, show the space
  * name, sign in if needed, validate the invite, join, then go to the workspace.
@@ -55,22 +73,6 @@ export default function JoinPage() {
       setJoining(false);
     }
   };
-
-  const Shell = ({ children }) => (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <Link to="/" className="flex items-center justify-center gap-2 mb-6">
-          <div className="bg-primary/10 p-2 rounded-lg">
-            <BookOpen className="h-6 w-6 text-primary" />
-          </div>
-          <span className="text-xl font-bold text-gray-900">StudySync</span>
-        </Link>
-        <Card>
-          <CardContent className="p-6">{children}</CardContent>
-        </Card>
-      </div>
-    </div>
-  );
 
   if (authLoading || loading) {
     return (
