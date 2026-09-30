@@ -34,12 +34,139 @@
   --radius: 0.5rem;
 }
 
-* {
-  border-color: var(--color-border);
+/* In the base layer so border-* utilities (which live in the utilities layer)
+   can override it; unlayered CSS would beat every layer */
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  .landing * {
+    border-color: var(--ls-line);
+  }
 }
 
 body {
   background-color: var(--color-background);
   color: var(--color-foreground);
   font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* ---------------------------------------------------------------------------
+   Landing and auth page tokens. Scoped to `.landing` so the app screens keep
+   their own theme; these pages follow the visitor's light / dark preference.
+   Radius system: panels 16px (rounded-2xl), anything you press is a pill.
+   --------------------------------------------------------------------------- */
+@theme inline {
+  --color-paper: var(--ls-paper);
+  --color-surface: var(--ls-surface);
+  --color-sunk: var(--ls-sunk);
+  --color-ink: var(--ls-ink);
+  --color-ink-soft: var(--ls-ink-soft);
+  --color-ink-faint: var(--ls-ink-faint);
+  --color-line: var(--ls-line);
+  --color-flame: var(--ls-flame);
+  --color-flame-ink: var(--ls-flame-ink);
+  --color-flame-wash: var(--ls-flame-wash);
+
+  --font-geist: "Geist", system-ui, -apple-system, sans-serif;
+  --font-geist-mono: "Geist Mono", ui-monospace, monospace;
+  /* Display face chosen for the StudySync brand; body copy stays in Geist */
+  --font-display: "Instrument Serif", Georgia, serif;
+}
+
+.landing {
+  --ls-paper: #fafafa;
+  --ls-surface: #ffffff;
+  --ls-sunk: #f4f4f5;
+  --ls-ink: #18181b;
+  --ls-ink-soft: #52525b;
+  --ls-ink-faint: #6b6b74;
+  --ls-line: #e4e4e7;
+  --ls-flame: #c9420e;
+  --ls-flame-ink: #ffffff;
+  --ls-flame-wash: #fdf0e8;
+  --ls-shadow: 24 24 27;
+
+  background-color: var(--ls-paper);
+  color: var(--ls-ink);
+  font-family: var(--font-geist);
+  -webkit-font-smoothing: antialiased;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  .landing {
+    --ls-paper: #0b0b0d;
+    --ls-surface: #141417;
+    --ls-sunk: #1c1c21;
+    --ls-ink: #f4f4f5;
+    --ls-ink-soft: #a1a1aa;
+    --ls-ink-faint: #8b8b94;
+    --ls-line: #27272a;
+    --ls-flame: #f0703a;
+    --ls-flame-ink: #0b0b0d;
+    --ls-flame-wash: #26160e;
+    --ls-shadow: 0 0 0;
+    color-scheme: dark;
+  }
+}
+
+.landing ::selection {
+  background: var(--ls-flame);
+  color: var(--ls-flame-ink);
+}
+
+/* Soft, background-tinted elevation for the few panels that need it */
+.ls-lift {
+  box-shadow:
+    0 1px 0 rgb(var(--ls-shadow) / 0.04),
+    0 24px 60px -24px rgb(var(--ls-shadow) / 0.22);
+}
+
+.ls-dots {
+  background-image: radial-gradient(var(--ls-line) 1px, transparent 1px);
+  background-size: 14px 14px;
+}
+
+/* Cursor-following highlight on feature tiles. --mx / --my are written by
+   pointer handlers straight onto the element, never through React state. */
+.ls-spot {
+  position: relative;
+  isolation: isolate;
+}
+.ls-spot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--ls-flame) 9%, transparent), transparent 60%);
+  pointer-events: none;
+}
+.ls-spot:hover::before {
+  opacity: 1;
+}
+
+.ls-caret {
+  animation: ls-blink 1.05s steps(1) infinite;
+}
+@keyframes ls-blink {
+  50% { opacity: 0; }
+}
+
+@keyframes ls-sheen {
+  to { transform: translateX(300%); }
+}
+
+/* SplitText line masks: keep italic overhangs and descenders from clipping */
+.ls-line-mask {
+  padding-bottom: 0.08em;
+  margin-bottom: -0.08em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ls-caret { animation: none; }
+  .ls-spot::before { transition: none; }
 }

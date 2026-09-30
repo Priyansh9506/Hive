@@ -1,99 +1,118 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Label } from '../components/ui/Label';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../components/ui/Card';
 import { useAuth } from '../context/AuthContext';
+import AuthLayout from '../components/auth/AuthLayout';
+import AuthField from '../components/auth/AuthField';
+import { FormAlert, SubmitButton } from '../components/auth/AuthForm';
 import GoogleSignInButton from '../components/auth/GoogleSignInButton';
+import { shake } from '../components/landing/gsap';
+
+const EMAIL_RE = /^\S+@\S+\.\S+$/;
+// Mirrors the server's rule in models/User.js
+const MIN_PASSWORD = 6;
 
 export default function SignupPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState('');
   const [loading, setLoading] = useState(false);
+  const formRef = useRef(null);
   const { register } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   // An invite link sends visitors here first; return them to it afterwards
   const redirectTo = location.state?.from || '/dashboard';
 
+  const validate = () => {
+    const next = {};
+    if (!name.trim()) next.name = 'Tell your group what to call you.';
+    if (!EMAIL_RE.test(email.trim())) next.email = 'Enter a valid email address.';
+    if (password.length < MIN_PASSWORD) next.password = `Use at least ${MIN_PASSWORD} characters.`;
+    return next;
+  };
+
+  // Typing into a field clears its own error only
+  const update = (setter, key) => (e) => {
+    setter(e.target.value);
+    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: undefined }));
+  };
+
   const handleSignup = async (e) => {
     e.preventDefault();
+    const found = validate();
+    setErrors(found);
+    setFormError('');
+    if (Object.keys(found).length) return shake(formRef.current);
+
     setLoading(true);
     try {
-      await register(name, email, password);
-      toast.success('Account created successfully!');
+      await register(name.trim(), email.trim(), password);
+      toast.success('Account created. Welcome to StudySync!');
       navigate(redirectTo, { replace: true });
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Registration failed. Please try again.');
+      setFormError(error.response?.data?.message || 'Registration failed. Please try again.');
+      shake(formRef.current);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen bg-background items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
-          <CardDescription>Enter your details below to create your StudySync account</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSignup} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              <Input 
-                id="name" 
-                type="text" 
-                placeholder="John Doe" 
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                disabled={loading}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input 
-                id="email" 
-                type="email" 
-                placeholder="m@example.com" 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={loading}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input 
-                id="password" 
-                type="password" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={loading}
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Signing up...' : 'Sign up'}
-            </Button>
-          </form>
-          <div className="mt-4">
-            <GoogleSignInButton redirectTo={redirectTo} text="signup_with" />
-          </div>
-        </CardContent>
-        <CardFooter className="flex justify-center">
-          <p className="text-sm text-muted-foreground">
-            Already have an account?{' '}
-            <Link to="/login" className="text-primary hover:underline">
-              Sign in
-            </Link>
-          </p>
-        </CardFooter>
-      </Card>
-    </div>
+    <AuthLayout
+      title="Create your account."
+      subtitle="It takes a minute. Then start a space and invite your group."
+      aside="Bring the whole study group into one room."
+      footer={
+        <>
+          Already have an account?{' '}
+          <Link to="/login" state={location.state} className="font-medium text-ink underline-offset-4 hover:text-flame hover:underline">
+            Sign in
+          </Link>
+        </>
+      }
+    >
+      <div className="grid gap-6">
+        <GoogleSignInButton redirectTo={redirectTo} text="signup_with" />
+
+        <form ref={formRef} onSubmit={handleSignup} noValidate className="grid gap-5">
+          <AuthField
+            label="Full name"
+            autoComplete="name"
+            placeholder="Aarav Mehta"
+            value={name}
+            onChange={update(setName, 'name')}
+            error={errors.name}
+            disabled={loading}
+          />
+          <AuthField
+            label="Email"
+            type="email"
+            autoComplete="email"
+            placeholder="you@college.edu"
+            value={email}
+            onChange={update(setEmail, 'email')}
+            error={errors.email}
+            disabled={loading}
+          />
+          <AuthField
+            label="Password"
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={update(setPassword, 'password')}
+            error={errors.password}
+            helper={`At least ${MIN_PASSWORD} characters.`}
+            disabled={loading}
+          />
+          <FormAlert message={formError} />
+          <SubmitButton loading={loading} loadingLabel="Creating your account…">
+            Create account
+          </SubmitButton>
+        </form>
+      </div>
+    </AuthLayout>
   );
 }
