@@ -5,6 +5,7 @@ const { sendMail, isConfigured } = require('../config/mailer');
 const { inviteEmail } = require('../utils/emailTemplates');
 const { generateJoinCode } = require('../utils/joinCode');
 const logActivity = require('../utils/logActivity');
+const { emitSpaceUpdated } = require('../utils/live');
 const notify = require('../utils/notify');
 
 // The public origin the invite link should point at. CLIENT_URL may hold a
@@ -12,7 +13,9 @@ const notify = require('../utils/notify');
 const clientOrigin = () =>
   (process.env.CLIENT_URL || 'http://localhost:5173').split(',')[0].trim().replace(/\/$/, '');
 
-const inviteUrlFor = (joinCode) => `${clientOrigin()}/join/${joinCode.replace('-', '')}`;
+// Links carry the code as people see it (`/join/W6A-BEC`); the join and preview
+// routes also accept it without the dash or in lower case
+const inviteUrlFor = (joinCode) => `${clientOrigin()}/join/${encodeURIComponent(joinCode)}`;
 
 // Shape the invite payload the client renders (link, code, constraints)
 const invitePayload = (space) => ({
@@ -95,6 +98,8 @@ const updateInvite = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Space not found' });
     }
 
+    emitSpaceUpdated(space._id, { inviteEnabled: space.inviteEnabled });
+
     res.status(200).json({ success: true, invite: invitePayload(space) });
   } catch (error) {
     next(error);
@@ -124,6 +129,9 @@ const regenerateInvite = async (req, res, next) => {
       targetType: 'space',
       targetId: space._id,
     });
+
+    // Workspace headers show the code
+    emitSpaceUpdated(space._id, { joinCode: space.joinCode });
 
     res.status(200).json({
       success: true,
@@ -207,7 +215,7 @@ const sendEmailInvite = async (req, res, next) => {
             type: 'invite_received',
             title: `${req.user.name} invited you to ${space.name}`,
             body: trimmedMessage || 'Open the invite to join this study space.',
-            link: `/join/${space.joinCode.replace('-', '')}`,
+            link: `/join/${encodeURIComponent(space.joinCode)}`,
           })
         )
     );

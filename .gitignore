@@ -4,5 +4,9 @@ node_modules/
 .DS_Store
 dist/
 
+# Local-only docs (not part of the repository)
+StudySync_PRD.md
+OLD-README.md
+
 # Uploaded resources (served from /uploads, not source)
 server/uploads/

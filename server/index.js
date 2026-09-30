@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const path = require('path');
 require('dotenv').config();
 
@@ -17,9 +18,11 @@ const searchRoutes = require('./routes/search');
 const app = express();
 
 // --------------- Middleware ---------------
+// Browsers send the Origin header without a trailing slash, so a CLIENT_URL
+// entered as "https://app.example/" must still match "https://app.example"
 const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
   .split(',')
-  .map(s => s.trim());
+  .map(s => s.trim().replace(/\/+$/, ''));
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -42,6 +45,8 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+// Reads the httpOnly refresh-token cookie on /api/auth/refresh and /logout
+app.use(cookieParser());
 
 // Uploaded resources. `Cross-Origin-Resource-Policy` lets the client render them
 // from its own origin; `X-Content-Type-Options` stops a browser sniffing an

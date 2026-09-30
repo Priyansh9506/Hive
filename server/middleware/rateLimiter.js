@@ -13,6 +13,19 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Session refresh runs on every page load and every few minutes per open tab,
+// so it needs more room than sign-in, but still stops token guessing
+const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  message: {
+    success: false,
+    message: 'Too many requests. Please slow down.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // General API limiter
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -68,4 +81,4 @@ const aiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-module.exports = { authLimiter, apiLimiter, uploadLimiter, emailLimiter, aiLimiter };
+module.exports = { authLimiter, refreshLimiter, apiLimiter, uploadLimiter, emailLimiter, aiLimiter };

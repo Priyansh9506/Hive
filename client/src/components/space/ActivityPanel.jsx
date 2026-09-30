@@ -105,7 +105,7 @@ export default function ActivityPanel({ spaceId }) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div className="flex flex-col h-full bg-surface rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div className="px-4 py-2.5 bg-gray-50 border-b flex items-center justify-between shrink-0">
         <h3 className="font-semibold text-gray-700 flex items-center gap-2">
           <ActivityIcon size={15} /> Activity
@@ -130,7 +130,7 @@ export default function ActivityPanel({ spaceId }) {
           <>
             {groups.map((group) => (
               <div key={group.label} className="mb-4 last:mb-0">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2 sticky top-0 bg-white py-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2 sticky top-0 bg-surface py-1">
                   {group.label}
                 </p>
                 <ul className="space-y-2.5">

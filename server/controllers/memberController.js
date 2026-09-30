@@ -2,6 +2,7 @@ const Membership = require('../models/Membership');
 const StudySpace = require('../models/StudySpace');
 const logActivity = require('../utils/logActivity');
 const { getIo } = require('../config/socket');
+const { toSpace, unwatchSpace } = require('../utils/live');
 
 // @desc    List members of a space
 // @route   GET /api/spaces/:spaceId/members
@@ -64,11 +65,16 @@ const leaveSpace = async (req, res, next) => {
       targetId: req.user.id,
     });
 
-    // Push the removal so open workspaces drop them from the member list
-    getIo().to(`space:${req.spaceId}`).emit('member_removed', {
-      spaceId: req.spaceId,
+    // Push the removal so open workspaces drop them from the member list and
+    // dashboards show the new count; the leaver's own tabs drop the card
+    const membersCount = await Membership.countDocuments({ spaceId: req.spaceId });
+    unwatchSpace(req.user.id, req.spaceId);
+    toSpace(req.spaceId).emit('member_removed', {
+      spaceId: String(req.spaceId),
       userId: req.user.id,
+      membersCount,
     });
+    getIo().to(`user:${req.user.id}`).emit('space_removed', { spaceId: String(req.spaceId) });
 
     res.status(200).json({
       success: true,
@@ -111,14 +117,16 @@ const removeMember = async (req, res, next) => {
       targetId: userId,
     });
 
-    const io = getIo();
-    io.to(`space:${req.spaceId}`).emit('member_removed', {
-      spaceId: req.spaceId,
+    const membersCount = await Membership.countDocuments({ spaceId: req.spaceId });
+    unwatchSpace(userId, req.spaceId);
+    toSpace(req.spaceId).emit('member_removed', {
+      spaceId: String(req.spaceId),
       userId,
+      membersCount,
     });
     // Tell the removed user directly — they may have the workspace open
-    io.to(`user:${userId}`).emit('space_access_revoked', {
-      spaceId: req.spaceId,
+    getIo().to(`user:${userId}`).emit('space_access_revoked', {
+      spaceId: String(req.spaceId),
     });
 
     res.status(200).json({

@@ -7,6 +7,13 @@ import toast from 'react-hot-toast';
 
 import api from '../../lib/api';
 
+// Accept a pasted invite link as well as the bare code
+const codeFrom = (input) => {
+  const text = String(input).trim();
+  const fromLink = text.match(/\/join\/([^/?#\s]+)/i);
+  return fromLink ? decodeURIComponent(fromLink[1]) : text;
+};
+
 export function JoinSpaceModal({ isOpen, onClose, onJoin }) {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -17,7 +24,7 @@ export function JoinSpaceModal({ isOpen, onClose, onJoin }) {
     
     setLoading(true);
     try {
-      const response = await api.post('/spaces/join', { code });
+      const response = await api.post('/spaces/join', { code: codeFrom(code) });
       onJoin(response.data.space);
       toast.success('Successfully joined the study space!');
       onClose();
@@ -36,13 +43,15 @@ export function JoinSpaceModal({ isOpen, onClose, onJoin }) {
           <Label htmlFor="inviteCode">Invite Code</Label>
           <Input
             id="inviteCode"
-            placeholder="e.g., 7KQ-9PM"
+            placeholder="e.g. 7KQ-9PM"
             value={code}
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            onChange={(e) => setCode(e.target.value)}
+            autoCapitalize="characters"
+            autoComplete="off"
             required
             disabled={loading}
           />
-          <p className="text-sm text-gray-500">Ask the space owner for the invite code.</p>
+          <p className="text-sm text-gray-500">Paste the invite link, or type the code the owner shared.</p>
         </div>
         <div className="flex justify-end gap-2 pt-4">
           <Button type="button" variant="outline" onClick={onClose} disabled={loading}>

@@ -1,11 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { LogOut, BookOpen, Search, User as UserIcon } from 'lucide-react';
+import { LogOut, Search, User as UserIcon } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import NotificationsBell from './NotificationsBell';
 import { usePopIn } from '../../hooks/usePopIn';
+import { LogoMark } from '../landing/primitives';
+import ThemeToggle from './ThemeToggle';
+import { useThemeChoice } from './AppShell';
 
-export default function Topbar() {
+export default function Topbar({ className = '' }) {
+  const themeChoice = useThemeChoice();
   const { user, logout } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const navigate = useNavigate();
@@ -37,17 +41,13 @@ export default function Topbar() {
   };
 
   return (
-    <header className="bg-white border-b sticky top-0 z-40">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16 gap-3">
+    <header className={`bg-paper/80 backdrop-blur-md border-b border-line sticky top-0 z-40 ${className}`}>
+      <div className="max-w-[1600px] mx-auto px-3 sm:px-6 lg:px-8 2xl:px-12">
+        <div className="flex justify-between items-center h-14 sm:h-16 gap-2 sm:gap-3">
           <div className="flex items-center shrink-0">
             <Link to="/dashboard" className="flex items-center gap-2">
-              <div className="bg-primary/10 p-2 rounded-lg">
-                <BookOpen className="h-6 w-6 text-primary" />
-              </div>
-              <span className="hidden sm:inline text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-blue-600">
-                StudySync
-              </span>
+              <LogoMark className="size-7" />
+              <span className="hidden sm:inline text-[17px] font-semibold tracking-tight text-ink">StudySync</span>
             </Link>
           </div>
 
@@ -55,24 +55,31 @@ export default function Topbar() {
           <form onSubmit={handleSearch} className="flex-1 max-w-md">
             <label className="relative block">
               <span className="sr-only">Search your study spaces</span>
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <Search size={15} className={`absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint pointer-events-none`} />
               <input
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search messages, resources, pins..."
-                className="w-full h-9 pl-9 pr-3 text-sm bg-gray-50 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 focus:bg-white transition-colors"
+                className="w-full h-9 pl-9 pr-3 text-sm rounded-full bg-sunk border border-line text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-flame/30 focus:border-flame/60 focus:bg-surface transition-colors"
               />
             </label>
           </form>
 
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-0.5 sm:gap-2 shrink-0">
+            {themeChoice && (
+              <div className="hidden sm:block">
+                <ThemeToggle theme={themeChoice.theme} onChange={themeChoice.setTheme} />
+              </div>
+            )}
             <NotificationsBell />
 
             <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="flex items-center gap-2 hover:bg-gray-50 p-2 rounded-full transition-colors"
+                className="flex items-center gap-2 hover:bg-sunk p-1.5 sm:p-2 rounded-full transition-colors cursor-pointer"
+                aria-label="Account menu"
+                aria-expanded={dropdownOpen}
               >
                 {user?.avatarUrl ? (
                   <img
@@ -85,33 +92,40 @@ export default function Topbar() {
                     }
                     referrerPolicy="no-referrer"
                     alt="Profile"
-                    className="h-8 w-8 rounded-full object-cover shadow-sm border border-gray-200"
+                    className="h-8 w-8 rounded-full object-cover shadow-sm border border-line"
                   />
                 ) : (
-                  <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
+                  <div className="h-8 w-8 rounded-full bg-flame-wash text-flame flex items-center justify-center font-bold">
                     {user?.name?.charAt(0).toUpperCase() || 'U'}
                   </div>
                 )}
-                <span className="hidden md:block text-sm font-medium text-gray-700">
+                <span className="hidden lg:block text-sm font-medium text-ink">
                   {user?.name}
                 </span>
               </button>
   
               {dropdownOpen && (
-                <div ref={dropdownRef} className="absolute right-0 top-12 mt-2 w-48 bg-white rounded-md shadow-lg py-1 border ring-1 ring-black ring-opacity-5">
-                  <div className="px-4 py-2 border-b">
-                    <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
-                    <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                <div ref={dropdownRef} className="absolute right-0 top-12 mt-2 w-56 py-1 bg-surface rounded-xl border border-line ls-lift">
+                  <div className="px-4 py-2 border-b border-line">
+                    <p className={`text-sm font-medium text-ink truncate`}>{user?.name}</p>
+                    <p className={`text-xs text-ink-faint truncate`}>{user?.email}</p>
                   </div>
+                  {/* On phones the theme switch lives here, out of the crowded bar */}
+                  {themeChoice && (
+                    <div className="sm:hidden px-4 py-2 border-b border-line flex items-center justify-between gap-3">
+                      <span className="text-sm text-ink-soft">Theme</span>
+                      <ThemeToggle theme={themeChoice.theme} onChange={themeChoice.setTheme} />
+                    </div>
+                  )}
                   <button
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                    className="w-full text-left px-4 py-2 text-sm text-ink-soft hover:bg-sunk hover:text-ink flex items-center gap-2 cursor-pointer"
                     onClick={() => { setDropdownOpen(false); navigate('/profile'); }}
                   >
                     <UserIcon size={16} /> Profile
                   </button>
                   <button
                     onClick={logout}
-                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                    className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-500/10 flex items-center gap-2 cursor-pointer"
                   >
                     <LogOut size={16} /> Sign out
                   </button>

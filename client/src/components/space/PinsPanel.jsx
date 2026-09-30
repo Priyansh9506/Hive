@@ -92,7 +92,7 @@ export default function PinsPanel({ spaceId, userRole, onJumpToMessage }) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div className="flex flex-col h-full bg-surface rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div className="px-4 py-2.5 bg-gray-50 border-b flex items-center justify-between shrink-0">
         <h3 className="font-semibold text-gray-700 flex items-center gap-2">
           <Pin size={15} /> Pinned
@@ -179,7 +179,7 @@ export default function PinsPanel({ spaceId, userRole, onJumpToMessage }) {
                   <button
                     onClick={() => handleUnpin(pin)}
                     disabled={busyId === pin._id}
-                    className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-gray-400 hover:text-rose-600 p-1 rounded transition-all disabled:opacity-50 shrink-0"
+                    className="opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 focus:opacity-100 text-gray-400 hover:text-rose-600 p-1 rounded transition-all disabled:opacity-50 shrink-0"
                     title="Unpin"
                   >
                     {busyId === pin._id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}

@@ -142,7 +142,7 @@ export default function ResourcesPanel({ spaceId, userRole, onPinsChanged }) {
   const visible = filter ? resources.filter((r) => r.type === filter) : resources;
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div className="flex flex-col h-full bg-surface rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div className="px-4 py-2.5 bg-gray-50 border-b flex items-center justify-between shrink-0 gap-2">
         <h3 className="font-semibold text-gray-700">Resources</h3>
         <Button size="sm" className="h-7 text-xs px-2.5" onClick={() => setAddOpen(true)}>
@@ -157,7 +157,7 @@ export default function ResourcesPanel({ spaceId, userRole, onPinsChanged }) {
             key={f.id}
             onClick={() => setFilter(f.id)}
             className={`text-xs px-2.5 py-1 rounded-full whitespace-nowrap transition-colors ${
-              filter === f.id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              filter === f.id ? 'bg-ink text-paper' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
             {f.label}
@@ -244,13 +244,13 @@ export default function ResourcesPanel({ spaceId, userRole, onPinsChanged }) {
                     )}
 
                     {resource.type === 'code' && expanded === resource._id && (
-                      <pre className="mt-2 p-2.5 bg-gray-900 text-gray-100 rounded text-[11px] leading-relaxed overflow-x-auto">
+                      <pre className="mt-2 p-2.5 bg-[#18181b] text-zinc-100 rounded text-[11px] leading-relaxed overflow-x-auto">
                         <code>{resource.metadata?.code}</code>
                       </pre>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 focus-within:opacity-100 transition-opacity">
                     <button
                       onClick={() => handleTogglePin(resource)}
                       disabled={busyId === resource._id}

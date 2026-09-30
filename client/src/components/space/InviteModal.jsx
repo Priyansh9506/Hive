@@ -30,6 +30,127 @@ const copyText = async (text) => {
   }
 };
 
+const EXPIRY_PRESETS = [
+  { value: null, label: 'Never' },
+  { value: 1, label: '1 day' },
+  { value: 7, label: '7 days' },
+  { value: 30, label: '30 days' },
+];
+const USE_PRESETS = [
+  { value: null, label: 'Unlimited' },
+  { value: 1, label: '1' },
+  { value: 5, label: '5' },
+  { value: 10, label: '10' },
+  { value: 25, label: '25' },
+];
+// Same bounds the server enforces (inviteController.updateInvite)
+const MAX_DAYS = 365;
+const MAX_USES = 1000;
+
+const CHIP = 'h-8 px-3 rounded-full text-[13px] font-medium border transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
+const chipClass = (active) =>
+  `${CHIP} ${active ? 'bg-ink text-paper border-ink' : 'bg-surface text-gray-600 border-gray-200 hover:border-gray-400 hover:text-gray-900'}`;
+
+const whenLabel = (iso) => {
+  const date = new Date(iso);
+  const days = Math.ceil((date - Date.now()) / 86400000);
+  const on = date.toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  if (days <= 0) return `Expired ${on}`;
+  return `Expires ${on} · in ${days} ${days === 1 ? 'day' : 'days'}`;
+};
+
+/**
+ * A row of preset chips plus "Custom", which opens a number field for any
+ * other value. `current` is the saved value (null = no limit).
+ */
+function LimitPicker({ id, label, presets, current, customFor, customLabel, unit, min, max, onSave, saving, hint }) {
+  const isPreset = presets.some((p) => p.value === current);
+  const [customOpen, setCustomOpen] = useState(false);
+  const savedCustom = !isPreset && current !== null && customFor === 'value' ? String(current) : '';
+  // What the field shows: the saved custom value, or the draft while editing
+  const [draft, setDraft] = useState('');
+  const fieldValue = customOpen ? draft : savedCustom;
+
+  const showCustom = customOpen || savedCustom !== '';
+  const n = Number(fieldValue);
+  const valid = fieldValue !== '' && Number.isInteger(n) && n >= min && n <= max;
+
+  const openCustom = () => {
+    setDraft(savedCustom);
+    setCustomOpen(true);
+  };
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!valid) return;
+    if (await onSave(n)) setCustomOpen(false);
+  };
+
+  return (
+    <div className="space-y-2">
+      <p id={`${id}-label`} className="text-sm font-medium text-gray-700">{label}</p>
+      <div role="group" aria-labelledby={`${id}-label`} className="flex flex-wrap gap-1.5">
+        {presets.map((p) => (
+          <button
+            key={p.label}
+            type="button"
+            disabled={saving}
+            aria-pressed={!showCustom && current === p.value}
+            onClick={() => { setCustomOpen(false); onSave(p.value); }}
+            className={chipClass(!showCustom && current === p.value)}
+          >
+            {p.label}
+          </button>
+        ))}
+        <button
+          type="button"
+          disabled={saving}
+          aria-pressed={showCustom || Boolean(customLabel)}
+          onClick={openCustom}
+          className={chipClass(showCustom || Boolean(customLabel))}
+        >
+          {customLabel && !customOpen ? customLabel : 'Custom'}
+        </button>
+      </div>
+
+      {showCustom && (
+        <form onSubmit={submit} className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Input
+              id={id}
+              type="number"
+              inputMode="numeric"
+              min={min}
+              max={max}
+              step={1}
+              autoFocus={customOpen}
+              placeholder={`${min}–${max}`}
+              value={fieldValue}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                setCustomOpen(true);
+              }}
+              // No spinner arrows: they would sit on top of the unit label
+              className="pr-16 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              aria-describedby={`${id}-hint`}
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">
+              {unit(n)}
+            </span>
+          </div>
+          {/* Nothing to save until the number is edited */}
+          <Button type="submit" size="sm" disabled={!valid || saving || !customOpen || fieldValue === savedCustom}>
+            {saving ? <Loader2 size={13} className="animate-spin" /> : 'Set'}
+          </Button>
+        </form>
+      )}
+      {showCustom && fieldValue !== '' && !valid && (
+        <p id={`${id}-hint`} className="text-xs text-rose-600">Enter a whole number from {min} to {max}.</p>
+      )}
+      {hint && <div className="text-xs text-gray-500">{hint}</div>}
+    </div>
+  );
+}
+
 export default function InviteModal({ isOpen, onClose, spaceId, spaceName, userRole }) {
   const [invite, setInvite] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -92,12 +213,19 @@ export default function InviteModal({ isOpen, onClose, spaceId, spaceName, userR
     }
   };
 
+  const [savingLimit, setSavingLimit] = useState('');
+  // Resolves true when saved, so a custom field knows to close
   const handleLimits = async (field, value) => {
+    setSavingLimit(field);
     try {
       const res = await api.post(`/spaces/${spaceId}/invites`, { [field]: value });
       setInvite(res.data.invite);
+      return true;
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update invite settings');
+      return false;
+    } finally {
+      setSavingLimit('');
     }
   };
 
@@ -130,7 +258,7 @@ export default function InviteModal({ isOpen, onClose, spaceId, spaceName, userR
       ) : !invite ? (
         <p className="text-sm text-gray-500 py-6 text-center">Could not load invite details.</p>
       ) : (
-        <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-1">
+        <div className="space-y-6">
           {/* Anything blocking joins is stated up front, not discovered on failure */}
           {(!invite.inviteEnabled || invite.expired || invite.exhausted) && (
             <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
@@ -178,55 +306,90 @@ export default function InviteModal({ isOpen, onClose, spaceId, spaceName, userR
 
           {/* ---------- Owner controls ---------- */}
           {isOwner && (
-            <div className="space-y-3 pt-4 border-t">
-              <Label className="text-xs uppercase tracking-wide text-gray-400">Invite settings</Label>
+            <div className="space-y-5 pt-4 border-t border-gray-200">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Invite settings</p>
 
-              <label className="flex items-center justify-between cursor-pointer">
-                <span className="text-sm text-gray-700">Allow people to join</span>
-                <input
-                  type="checkbox"
-                  checked={invite.inviteEnabled}
-                  onChange={handleToggleInvites}
-                  className="h-4 w-4 rounded accent-blue-600 cursor-pointer"
-                />
-              </label>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label htmlFor="inviteExpiry" className="text-xs text-gray-500">Expires in</Label>
-                  <select
-                    id="inviteExpiry"
-                    className="w-full h-9 text-sm rounded-md border border-input bg-transparent px-2"
-                    value={invite.expiresAt ? 'custom' : 'never'}
-                    onChange={(e) => handleLimits('expiresInDays', e.target.value === 'never' ? null : Number(e.target.value))}
-                  >
-                    <option value="never">Never</option>
-                    <option value="1">1 day</option>
-                    <option value="7">7 days</option>
-                    <option value="30">30 days</option>
-                    {invite.expiresAt && <option value="custom">{new Date(invite.expiresAt).toLocaleDateString()}</option>}
-                  </select>
+              {/* A real switch, not a bare checkbox */}
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p id="allowJoin" className="text-sm font-medium text-gray-700">Allow people to join</p>
+                  <p className="text-xs text-gray-500">Turn off to pause the link and code without changing them.</p>
                 </div>
-
-                <div className="space-y-1">
-                  <Label htmlFor="inviteMaxUses" className="text-xs text-gray-500">Max uses</Label>
-                  <select
-                    id="inviteMaxUses"
-                    className="w-full h-9 text-sm rounded-md border border-input bg-transparent px-2"
-                    value={invite.maxUses === null ? 'unlimited' : String(invite.maxUses)}
-                    onChange={(e) => handleLimits('maxUses', e.target.value === 'unlimited' ? null : Number(e.target.value))}
-                  >
-                    <option value="unlimited">Unlimited</option>
-                    <option value="1">1 person</option>
-                    <option value="5">5 people</option>
-                    <option value="10">10 people</option>
-                    <option value="25">25 people</option>
-                    {invite.maxUses !== null && ![1, 5, 10, 25].includes(invite.maxUses) && (
-                      <option value={String(invite.maxUses)}>{invite.maxUses} people</option>
-                    )}
-                  </select>
-                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={invite.inviteEnabled}
+                  aria-labelledby="allowJoin"
+                  onClick={handleToggleInvites}
+                  className={`relative h-6 w-11 shrink-0 rounded-full transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-flame ${
+                    invite.inviteEnabled ? 'bg-flame' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow transition-transform ${
+                      invite.inviteEnabled ? 'translate-x-5' : ''
+                    }`}
+                  />
+                </button>
               </div>
+
+              <LimitPicker
+                id="inviteExpiry"
+                label="Expires in"
+                presets={EXPIRY_PRESETS}
+                // The server stores a date, not the choice that produced it
+                current={invite.expiresAt ? 'date' : null}
+                customFor="date"
+                // A set expiry is shown as its date on the Custom chip
+                customLabel={
+                  invite.expiresAt
+                    ? `Until ${new Date(invite.expiresAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`
+                    : null
+                }
+                unit={(n) => (n === 1 ? 'day' : 'days')}
+                min={1}
+                max={MAX_DAYS}
+                saving={savingLimit === 'expiresInDays'}
+                onSave={(days) => handleLimits('expiresInDays', days)}
+                hint={
+                  invite.expiresAt ? (
+                    <span className={invite.expired ? 'text-rose-600' : ''}>{whenLabel(invite.expiresAt)}</span>
+                  ) : (
+                    'The link works until you turn it off or generate a new one.'
+                  )
+                }
+              />
+
+              <LimitPicker
+                id="inviteMaxUses"
+                label="Max people who can join"
+                presets={USE_PRESETS}
+                current={invite.maxUses}
+                customFor="value"
+                unit={(n) => (n === 1 ? 'person' : 'people')}
+                min={1}
+                max={MAX_USES}
+                saving={savingLimit === 'maxUses'}
+                onSave={(uses) => handleLimits('maxUses', uses)}
+                hint={
+                  invite.maxUses === null ? (
+                    `Joined with this code so far: ${invite.uses}. Anyone with the link can join.`
+                  ) : (
+                    <div className="space-y-1.5">
+                      <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${invite.exhausted ? 'bg-rose-500' : 'bg-flame'}`}
+                          style={{ width: `${Math.min(100, (invite.uses / invite.maxUses) * 100)}%` }}
+                        />
+                      </div>
+                      <p className={invite.exhausted ? 'text-rose-600' : ''}>
+                        {invite.uses} of {invite.maxUses} {invite.maxUses === 1 ? 'place' : 'places'} used
+                        {invite.exhausted ? ' · the code is full' : ` · ${invite.maxUses - invite.uses} left`}
+                      </p>
+                    </div>
+                  )
+                }
+              />
 
               <Button
                 type="button"

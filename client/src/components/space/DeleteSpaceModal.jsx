@@ -65,7 +65,7 @@ export function DeleteSpaceModal({ isOpen, onClose, space, onDelete }) {
           <Button
             onClick={handleDelete}
             disabled={confirmation !== spaceName || loading}
-            className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-40"
+            className="bg-red-600 hover:opacity-90 text-white disabled:opacity-40"
           >
             {loading ? 'Deleting...' : 'Delete Permanently'}
           </Button>

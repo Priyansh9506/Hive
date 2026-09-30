@@ -22,6 +22,8 @@ const protect = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = await User.findById(decoded.id).select('-password');
+    // The session this access token was issued under (see utils/session.js)
+    req.sessionId = decoded.sid;
 
     if (!req.user) {
       return res.status(401).json({

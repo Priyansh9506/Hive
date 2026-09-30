@@ -15,6 +15,7 @@ const logActivity = require('../utils/logActivity');
 const notify = require('../utils/notify');
 const { getIo } = require('../config/socket');
 const { generateJoinCode, normalizeJoinCode } = require('../utils/joinCode');
+const { toSpace, watchSpace, emitSpaceUpdated } = require('../utils/live');
 
 // @desc    Create a new study space
 // @route   POST /api/spaces
@@ -52,6 +53,9 @@ const createSpace = async (req, res, next) => {
     const spaceData = space.toObject();
     spaceData.membersCount = 1;
     spaceData.userRole = 'owner';
+
+    watchSpace(req.user.id, space._id);
+    getIo().to(`user:${req.user.id}`).emit('space_added', { space: { ...spaceData, unreadCount: 0 } });
 
     res.status(201).json({
       success: true,
@@ -198,6 +202,23 @@ const joinSpace = async (req, res, next) => {
     spaceData.userRole = 'member';
     spaceData.joinCodeUses = space.joinCodeUses + 1;
 
+    // Everyone already in the space: the new face in the member list and the
+    // new count on their cards. Then the joiner's own other tabs.
+    toSpace(space._id).emit('member_joined', {
+      spaceId: String(space._id),
+      membersCount,
+      member: {
+        userId: req.user.id,
+        name: req.user.name,
+        email: req.user.email,
+        avatarUrl: req.user.avatarUrl || '',
+        role: 'member',
+        joinedAt: new Date(),
+      },
+    });
+    watchSpace(req.user.id, space._id);
+    getIo().to(`user:${req.user.id}`).emit('space_added', { space: { ...spaceData, unreadCount: 0 } });
+
     res.status(200).json({
       success: true,
       message: `Successfully joined ${space.name}`,
@@ -322,6 +343,15 @@ const updateSpace = async (req, res, next) => {
     spaceData.membersCount = membersCount;
     spaceData.userRole = 'owner';
 
+    emitSpaceUpdated(space._id, {
+      name: space.name,
+      description: space.description,
+      icon: space.icon,
+      color: space.color,
+      inviteEnabled: space.inviteEnabled,
+      membersCount,
+    });
+
     res.status(200).json({
       success: true,
       space: spaceData,
@@ -366,11 +396,13 @@ const deleteSpace = async (req, res, next) => {
     ]);
     await StudySpace.findByIdAndDelete(space._id);
 
-    // Anyone with the workspace open is looking at a space that no longer exists
-    getIo().to(`space:${space._id}`).emit('space_deleted', {
-      spaceId: space._id,
+    // Open workspaces leave it; dashboards drop the card
+    toSpace(space._id).emit('space_deleted', {
+      spaceId: String(space._id),
       name: space.name,
+      deletedBy: req.user.id,
     });
+    getIo().socketsLeave([`space:${space._id}`, `watch:${space._id}`]);
 
     res.status(200).json({
       success: true,

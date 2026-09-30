@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
+import { getAccessToken, refreshSession } from '../lib/api';
 
 const SocketContext = createContext();
 // Kept separate from the socket itself so that a status flip re-renders only
@@ -22,12 +23,12 @@ export function SocketProvider({ children }) {
   const [status, setStatus] = useState('connecting');
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-
-    if (isAuthenticated && token) {
+    if (isAuthenticated && getAccessToken()) {
       const backendUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
       const newSocket = io(backendUrl, {
-        auth: { token },
+        // Read on every (re)connect, so a reconnect uses the current access
+        // token rather than the one from when the page loaded
+        auth: (cb) => cb({ token: getAccessToken() }),
         transports: ['websocket'],
       });
 
@@ -43,6 +44,13 @@ export function SocketProvider({ children }) {
       newSocket.on('connect_error', (err) => {
         console.error('Socket connection error:', err.message);
         setStatus('reconnecting');
+        // The server refused the handshake, typically an access token that ran
+        // out while the laptop slept. Socket.IO does not retry these by itself.
+        if (err.message.startsWith('Authentication error')) {
+          refreshSession()
+            .then(() => newSocket.connect())
+            .catch(() => {});
+        }
       });
 
       setSocket(newSocket);

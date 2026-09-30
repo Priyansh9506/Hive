@@ -138,6 +138,9 @@ const markRead = async (req, res, next) => {
     // req.membership was loaded by requireMember; update it in place
     await req.membership.updateOne({ lastReadAt });
 
+    // The reader's other tabs (a dashboard showing "3 new") catch up too
+    getIo().to(`user:${req.user.id}`).emit('space_read', { spaceId: String(req.spaceId) });
+
     res.status(200).json({ success: true, lastReadAt });
   } catch (error) {
     next(error);

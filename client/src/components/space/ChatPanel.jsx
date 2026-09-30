@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSocket } from '../../context/SocketContext';
 import { useAuth } from '../../context/AuthContext';
-import { Send, Loader2, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Highlighter } from 'lucide-react';
+import { Send, Loader2, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Highlighter, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
 import { gsap, useGSAP, prefersReducedMotion, CLEAR } from '../../lib/motion';
@@ -26,7 +26,8 @@ const MAX_JUMP_PAGES = 10;
  * unmount (mobile tab switch, hidden sidebar) while the space stays open, and
  * other panels rely on the same room for live updates.
  */
-export default function ChatPanel({ spaceId, userRole, onHighlight, jumpToMessageId, onJumpHandled }) {
+// `onClose` adds a close button, for when the chat slides over the page
+export default function ChatPanel({ spaceId, userRole, onHighlight, jumpToMessageId, onJumpHandled, onClose }) {
   const socket = useSocket();
   const { user } = useAuth();
   const [messages, setMessages] = useState([]);
@@ -391,17 +392,28 @@ export default function ChatPanel({ spaceId, userRole, onHighlight, jumpToMessag
   };
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div className="flex flex-col h-full bg-surface rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       {/* Header */}
       <div className="px-4 py-2 bg-gray-50 border-b flex items-center justify-between shrink-0">
         <h3 className="font-semibold text-gray-700">Discussion</h3>
-        <span className="text-xs text-gray-400">{messages.length} messages</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">{messages.length} messages</span>
+          {onClose && (
+            <button
+              onClick={onClose}
+              aria-label="Close chat"
+              className="-mr-2 p-1.5 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 cursor-pointer"
+            >
+              <X size={17} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages */}
       <div
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto px-3 py-2 space-y-1"
+        className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5 bg-paper/60"
         onScroll={(e) => {
           // Load more when scrolled to top
           if (e.target.scrollTop < 40 && hasMore && !loadingMore) {
@@ -433,8 +445,11 @@ export default function ChatPanel({ spaceId, userRole, onHighlight, jumpToMessag
             No messages yet. Start the conversation!
           </div>
         ) : (
-          messages.map((msg) => {
+          messages.map((msg, i) => {
             const isOwn = msg.senderId === user.id || msg.senderId === user._id;
+            // A run of messages from one person shows their name once
+            const prev = messages[i - 1];
+            const continues = prev && String(prev.senderId) === String(msg.senderId) && !prev.deletedAt;
             const isDeleted = !!msg.deletedAt;
             const isEditing = editing?.id === msg._id;
             const canAct = !isDeleted && !msg._optimistic && !isEditing;
@@ -446,10 +461,10 @@ export default function ChatPanel({ spaceId, userRole, onHighlight, jumpToMessag
                 id={`msg-${msg._id}`}
                 data-chat-id={msg.clientId || msg._id}
                 data-own={isOwn}
-                className={`group flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}
+                className={`group flex flex-col ${isOwn ? 'items-end' : 'items-start'} ${continues ? '-mt-1.5' : ''}`}
               >
-                {!isOwn && (
-                  <span className="text-[10px] text-gray-400 ml-1 mb-0.5">{msg.senderName}</span>
+                {!isOwn && !continues && (
+                  <span className="text-[10.5px] text-ink-faint ml-1 mb-1">{msg.senderName}</span>
                 )}
 
                 <div className={`flex items-center gap-1 max-w-[85%] ${isOwn ? 'flex-row-reverse' : ''}`}>
@@ -464,21 +479,41 @@ export default function ChatPanel({ spaceId, userRole, onHighlight, jumpToMessag
                         onChange={(e) => setEditing({ ...editing, content: e.target.value })}
                         onKeyDown={(e) => e.key === 'Escape' && setEditing(null)}
                         maxLength={5000}
-                        className="w-full text-sm border border-blue-300 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                        className="w-full text-sm bg-surface text-ink border border-flame/50 rounded-2xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-flame/30"
                       />
                       <span className="text-[10px] text-gray-400">Enter to save · Esc to cancel</span>
                     </form>
                   ) : (
                     <div
-                      className={`px-3 py-1.5 rounded-2xl text-sm break-words transition-shadow ${
+                      className={`relative px-3 py-2 rounded-2xl text-[13.5px] leading-5 break-words whitespace-pre-wrap transition-shadow ${
+                        isOwn ? 'rounded-tr-md' : 'rounded-tl-md'
+                      } ${
                         isDeleted
-                          ? 'bg-gray-50 text-gray-400 italic border border-dashed border-gray-200'
+                          ? 'text-ink-faint italic border border-dashed border-line'
                           : isOwn
-                            ? `bg-blue-600 text-white ${msg._optimistic ? 'opacity-70' : ''}`
-                            : 'bg-gray-100 text-gray-800'
-                      } ${flashId === String(msg._id) ? 'ring-4 ring-amber-300' : ''}`}
+                            ? `bg-flame-wash/50 text-ink ${msg._optimistic ? 'opacity-60' : ''}`
+                            : 'bg-surface text-ink'
+                      } ${
+                        // One ring at a time: the jump-to flash wins over the resting ring
+                        flashId === String(msg._id)
+                          ? 'ring-4 ring-amber-300'
+                          : isDeleted
+                            ? ''
+                            : isOwn || msg.isPinned
+                              ? 'ring-1 ring-flame/55'
+                              : 'ring-1 ring-line'
+                      }`}
                     >
                       {msg.content}
+                      {msg.isPinned && !isDeleted && (
+                        <span
+                          title="Pinned"
+                          className={`absolute -top-2 ${isOwn ? '-left-2' : '-right-2'} grid size-5 place-items-center rounded-full bg-flame text-flame-ink shadow-sm`}
+                        >
+                          <Pin size={10} strokeWidth={2.5} />
+                          <span className="sr-only">Pinned</span>
+                        </span>
+                      )}
                     </div>
                   )}
 
@@ -487,7 +522,7 @@ export default function ChatPanel({ spaceId, userRole, onHighlight, jumpToMessag
                       <button
                         onClick={() => { setMenuFor(menuFor === msg._id ? null : msg._id); setConfirmDelete(null); }}
                         className={`p-1 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-opacity ${
-                          menuFor === msg._id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'
+                          menuFor === msg._id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 focus:opacity-100'
                         }`}
                         title="Message actions"
                       >
@@ -496,7 +531,7 @@ export default function ChatPanel({ spaceId, userRole, onHighlight, jumpToMessag
 
                       {menuFor === msg._id && (
                         <div
-                          className={`absolute z-20 top-7 ${isOwn ? 'right-0' : 'left-0'} w-40 bg-white border border-gray-200 rounded-lg shadow-lg py-1 text-sm`}
+                          className={`absolute z-20 top-7 ${isOwn ? 'right-0' : 'left-0'} w-40 bg-surface border border-gray-200 rounded-lg shadow-lg py-1 text-sm`}
                         >
                           {confirmDelete === msg._id ? (
                             <div className="px-3 py-2 space-y-2">
@@ -504,7 +539,7 @@ export default function ChatPanel({ spaceId, userRole, onHighlight, jumpToMessag
                               <div className="flex gap-1.5">
                                 <button
                                   onClick={() => deleteMessage(msg)}
-                                  className="flex-1 text-xs bg-rose-600 text-white rounded px-2 py-1 hover:bg-rose-700"
+                                  className="flex-1 text-xs bg-rose-600 text-white rounded px-2 py-1 hover:opacity-90"
                                 >
                                   Delete
                                 </button>
@@ -559,8 +594,7 @@ export default function ChatPanel({ spaceId, userRole, onHighlight, jumpToMessag
                   )}
                 </div>
 
-                <span className={`text-[10px] mx-1 mt-0.5 flex items-center gap-1 ${msg._failed ? 'text-red-500' : 'text-gray-300'}`}>
-                  {msg.isPinned && !isDeleted && <Pin size={9} className="text-amber-500" />}
+                <span className={`text-[10px] mx-1 mt-1 flex items-center gap-1 ${msg._failed ? 'text-red-500' : 'text-ink-faint'}`}>
                   {msg._failed ? 'Not sent' : formatTime(msg.createdAt)}
                   {msg.editedAt && !isDeleted && <span>· edited</span>}
                 </span>
@@ -571,29 +605,34 @@ export default function ChatPanel({ spaceId, userRole, onHighlight, jumpToMessag
 
         {/* Typing indicator */}
         {typingUsers.length > 0 && (
-          <div className="text-xs text-gray-400 italic px-1">
-            {typingUsers.map((u) => u.name).join(', ')}{' '}
-            {typingUsers.length === 1 ? 'is' : 'are'} typing...
-          </div>
+          <p className="flex items-center gap-1.5 px-1 text-[11px] text-ink-faint">
+            {typingUsers.map((u) => u.name).join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing
+            <span className="flex gap-0.5" aria-hidden="true">
+              <span className="size-1 animate-pulse rounded-full bg-ink-faint" />
+              <span className="size-1 animate-pulse rounded-full bg-ink-faint [animation-delay:150ms]" />
+              <span className="size-1 animate-pulse rounded-full bg-ink-faint [animation-delay:300ms]" />
+            </span>
+          </p>
         )}
 
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
-      <form onSubmit={sendMessage} className="border-t px-3 py-2 flex items-center gap-2 shrink-0 bg-gray-50">
+      <form onSubmit={sendMessage} className="border-t border-line px-3 py-2.5 flex items-center gap-2 shrink-0 bg-surface">
         <input
           type="text"
           value={input}
           onChange={handleInputChange}
           placeholder="Type a message..."
-          className="flex-1 text-sm bg-white border border-gray-200 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-400 transition-colors"
+          className="flex-1 min-w-0 text-sm bg-sunk text-ink placeholder:text-ink-faint border border-line rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-flame/30 focus:border-flame/60 focus:bg-surface transition-colors"
           maxLength={5000}
         />
         <button
           type="submit"
           disabled={!input.trim()}
-          className="p-2 rounded-full bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors shrink-0"
+          aria-label="Send message"
+          className="grid size-9 place-items-center rounded-full bg-flame text-flame-ink hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity shrink-0 cursor-pointer"
         >
           <Send size={16} />
         </button>

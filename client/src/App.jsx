@@ -8,6 +8,7 @@ import WorkspacePage from './pages/WorkspacePage';
 import ProfilePage from './pages/ProfilePage';
 import JoinPage from './pages/JoinPage';
 import SearchPage from './pages/SearchPage';
+import NotFoundPage from './pages/NotFoundPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import RouteTransition from './components/motion/RouteTransition';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -53,6 +54,8 @@ function App() {
               <Route path="/search" element={<SearchPage />} />
               <Route path="/profile" element={<ProfilePage />} />
             </Route>
+
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
           </RouteTransition>
         </Router>

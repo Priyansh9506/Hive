@@ -116,7 +116,7 @@ export default function AddResourceModal({ isOpen, onClose, spaceId, onAdded }) 
               onClick={() => setTab(id)}
               disabled={saving}
               className={`flex-1 flex items-center justify-center gap-1.5 text-sm font-medium py-1.5 rounded-md transition-colors ${
-                tab === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                tab === id ? 'bg-surface text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               <Icon size={14} /> {label}

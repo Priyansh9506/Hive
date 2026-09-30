@@ -6,7 +6,7 @@ import Quill from 'quill';
 import QuillCursors from 'quill-cursors';
 import 'quill/dist/quill.snow.css';
 import { useAuth } from '../../context/AuthContext';
-import api from '../../lib/api';
+import api, { getAccessToken } from '../../lib/api';
 import { Cloud, CheckCircle2, Loader2, Save, Wifi, WifiOff, Highlighter, Users, ShieldAlert, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -121,11 +121,13 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
     const cleanUrl = rawUrl.replace(/\/api\/?$/, '').replace(/^http/, 'ws');
     // The server authenticates the Yjs upgrade and checks space membership, so
     // the token has to travel with the handshake (it becomes a query param).
+    // A getter, because the provider rebuilds its URL from `params` on every
+    // reconnect and the short-lived access token changes in the meantime.
     const provider = new WebsocketProvider(
       `${cleanUrl}/yjs`,
       `studysync-room-${spaceId}`,
       ydoc,
-      { params: { token: localStorage.getItem('token') || '' } }
+      { params: { get token() { return getAccessToken() || ''; } } }
     );
 
     provider.on('status', event => {
@@ -258,7 +260,7 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
   }, [spaceId, user?.name, initialNotes, saveToDatabase]);
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-xl shadow-xs border border-gray-200 overflow-hidden">
+    <div className="flex flex-col h-full bg-surface rounded-xl shadow-xs border border-gray-200 overflow-hidden">
       {/* Top Header Bar */}
       <div className="flex flex-wrap justify-between items-center px-4 py-2.5 bg-gray-50 border-b border-gray-200 gap-2 shrink-0">
         <div className="flex items-center gap-3">
@@ -318,7 +320,7 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
             <button
               onClick={() => onHighlight(selection)}
               disabled={!selection}
-              className="text-xs px-2.5 py-1 rounded-md bg-white hover:bg-amber-50 active:bg-amber-100 border border-gray-300 text-gray-700 font-medium transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="text-xs px-2.5 py-1 rounded-md bg-surface hover:bg-amber-50 active:bg-amber-100 border border-gray-300 text-gray-700 font-medium transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               title={selection ? 'Mark the selected text as a highlight' : 'Select some text in the notes first'}
             >
               <Highlighter size={13} />
@@ -331,7 +333,7 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
             <button
               onClick={handleExplain}
               disabled={!selection}
-              className="text-xs px-2.5 py-1 rounded-md bg-white hover:bg-violet-50 active:bg-violet-100 border border-gray-300 text-gray-700 font-medium transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="text-xs px-2.5 py-1 rounded-md bg-surface hover:bg-violet-50 active:bg-violet-100 border border-gray-300 text-gray-700 font-medium transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               title={selection ? 'Explain the selected text simply' : 'Select some text in the notes first'}
             >
               <Sparkles size={13} className="text-violet-500" />
@@ -343,7 +345,7 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
           <button
             onClick={handleManualSave}
             disabled={versionSaving}
-            className="text-xs px-2.5 py-1 rounded-md bg-white hover:bg-gray-100 active:bg-gray-200 border border-gray-300 text-gray-700 font-medium transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+            className="text-xs px-2.5 py-1 rounded-md bg-surface hover:bg-gray-100 active:bg-gray-200 border border-gray-300 text-gray-700 font-medium transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
             title="Save the notes as a new version in Version history (only if they changed)"
           >
             {versionSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
@@ -389,7 +391,7 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
       {/* Editor Main Container (Toolbar + Editable Area) */}
       <div
         ref={containerRef}
-        className="flex-1 flex flex-col min-h-0 overflow-hidden [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b! [&_.ql-toolbar]:border-gray-200! [&_.ql-toolbar]:bg-white [&_.ql-container]:border-none [&_.ql-container]:flex-1 [&_.ql-container]:overflow-y-auto [&_.ql-editor]:min-h-full [&_.ql-editor]:text-base [&_.ql-editor]:leading-relaxed [&_.ql-editor]:p-4 sm:[&_.ql-editor]:p-6"
+        className="flex-1 flex flex-col min-h-0 overflow-hidden [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b! [&_.ql-toolbar]:border-gray-200! [&_.ql-toolbar]:bg-surface [&_.ql-container]:border-none [&_.ql-container]:flex-1 [&_.ql-container]:overflow-y-auto [&_.ql-editor]:min-h-full [&_.ql-editor]:text-base [&_.ql-editor]:leading-relaxed [&_.ql-editor]:p-4 sm:[&_.ql-editor]:p-6"
       />
     </div>
   );

@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Palette re-mapping for the signed-in screens */
+@import "./app-theme.css";
 /* `prose` styles for AI answers, which arrive as markdown */
 @plugin "@tailwindcss/typography";
 
@@ -94,8 +96,10 @@ body {
   color-scheme: light;
 }
 
+/* Follows the system unless the page pins a theme with data-theme (the
+   dashboard's light / dark switch); the landing and auth pages never set it */
 @media (prefers-color-scheme: dark) {
-  .landing {
+  .landing:not([data-theme="light"]) {
     --ls-paper: #0b0b0d;
     --ls-surface: #141417;
     --ls-sunk: #1c1c21;
@@ -111,6 +115,21 @@ body {
   }
 }
 
+.landing[data-theme="dark"] {
+  --ls-paper: #0b0b0d;
+  --ls-surface: #141417;
+  --ls-sunk: #1c1c21;
+  --ls-ink: #f4f4f5;
+  --ls-ink-soft: #a1a1aa;
+  --ls-ink-faint: #8b8b94;
+  --ls-line: #27272a;
+  --ls-flame: #f0703a;
+  --ls-flame-ink: #0b0b0d;
+  --ls-flame-wash: #26160e;
+  --ls-shadow: 0 0 0;
+  color-scheme: dark;
+}
+
 .landing ::selection {
   background: var(--ls-flame);
   color: var(--ls-flame-ink);
@@ -121,6 +140,22 @@ body {
   box-shadow:
     0 1px 0 rgb(var(--ls-shadow) / 0.04),
     0 24px 60px -24px rgb(var(--ls-shadow) / 0.22);
+}
+
+/* Dashboard space cards. The hover lift uses `translate`, not `transform`, so
+   it never fights the GSAP entrance, which animates `transform` */
+.ls-card {
+  transition: translate 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.ls-card:hover {
+  translate: 0 -2px;
+  border-color: color-mix(in srgb, var(--ls-ink) 16%, var(--ls-line));
+  box-shadow:
+    0 1px 0 rgb(var(--ls-shadow) / 0.04),
+    0 20px 44px -24px rgb(var(--ls-shadow) / 0.28);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ls-card:hover { translate: none; }
 }
 
 .ls-dots {
@@ -169,4 +204,134 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .ls-caret { animation: none; }
   .ls-spot::before { transition: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   Signed-in screens (`.app-theme`, see app-theme.css): the pieces the palette
+   re-mapping cannot reach because they carry their own colours.
+   --------------------------------------------------------------------------- */
+
+/* Behind the page (overscroll, route fades) match the theme, not white */
+body:has(.landing[data-theme="dark"]) {
+  background-color: #0b0b0d;
+}
+@media (prefers-color-scheme: dark) {
+  body:has(.landing:not([data-theme="light"])) {
+    background-color: #0b0b0d;
+  }
+}
+
+/* Markdown answers: the typography plugin ships fixed gray values */
+.app-theme .prose {
+  --tw-prose-body: var(--ls-ink-soft);
+  --tw-prose-headings: var(--ls-ink);
+  --tw-prose-lead: var(--ls-ink-soft);
+  --tw-prose-links: var(--ls-flame);
+  --tw-prose-bold: var(--ls-ink);
+  --tw-prose-counters: var(--ls-ink-faint);
+  --tw-prose-bullets: var(--ls-ink-faint);
+  --tw-prose-hr: var(--ls-line);
+  --tw-prose-quotes: var(--ls-ink);
+  --tw-prose-quote-borders: var(--ls-line);
+  --tw-prose-captions: var(--ls-ink-faint);
+  --tw-prose-code: var(--ls-ink);
+  --tw-prose-pre-code: #e4e4e7;
+  --tw-prose-pre-bg: #18181b;
+  --tw-prose-th-borders: var(--ls-line);
+  --tw-prose-td-borders: var(--ls-line);
+}
+
+/* Quill (shared notes). Its stylesheet hard-codes #444 icons, #06c accents
+   and white pop-ups; `.app-theme` gives these rules the higher specificity. */
+.app-theme .ql-snow,
+.app-theme .ql-container {
+  font-family: inherit;
+}
+.app-theme .ql-editor {
+  color: var(--ls-ink);
+}
+.app-theme .ql-editor.ql-blank::before {
+  color: var(--ls-ink-faint);
+}
+.app-theme .ql-snow .ql-stroke,
+.app-theme .ql-snow .ql-stroke-miter {
+  stroke: var(--ls-ink-soft);
+}
+.app-theme .ql-snow .ql-fill,
+.app-theme .ql-snow .ql-stroke.ql-fill {
+  fill: var(--ls-ink-soft);
+}
+.app-theme .ql-snow .ql-picker {
+  color: var(--ls-ink-soft);
+}
+.app-theme .ql-snow.ql-toolbar button:hover .ql-stroke,
+.app-theme .ql-snow.ql-toolbar button:focus .ql-stroke,
+.app-theme .ql-snow.ql-toolbar button.ql-active .ql-stroke,
+.app-theme .ql-snow.ql-toolbar .ql-picker-label:hover .ql-stroke,
+.app-theme .ql-snow.ql-toolbar .ql-picker-label.ql-active .ql-stroke,
+.app-theme .ql-snow.ql-toolbar button:hover .ql-stroke-miter,
+.app-theme .ql-snow.ql-toolbar button.ql-active .ql-stroke-miter {
+  stroke: var(--ls-flame);
+}
+.app-theme .ql-snow.ql-toolbar button:hover .ql-fill,
+.app-theme .ql-snow.ql-toolbar button:focus .ql-fill,
+.app-theme .ql-snow.ql-toolbar button.ql-active .ql-fill,
+.app-theme .ql-snow.ql-toolbar .ql-picker-label:hover .ql-fill,
+.app-theme .ql-snow.ql-toolbar .ql-picker-label.ql-active .ql-fill {
+  fill: var(--ls-flame);
+}
+.app-theme .ql-snow.ql-toolbar button:hover,
+.app-theme .ql-snow.ql-toolbar button.ql-active,
+.app-theme .ql-snow.ql-toolbar .ql-picker-label:hover,
+.app-theme .ql-snow.ql-toolbar .ql-picker-label.ql-active,
+.app-theme .ql-snow.ql-toolbar .ql-picker-item:hover,
+.app-theme .ql-snow.ql-toolbar .ql-picker-item.ql-selected,
+.app-theme .ql-snow a {
+  color: var(--ls-flame);
+}
+.app-theme .ql-snow .ql-picker-options,
+.app-theme .ql-snow .ql-tooltip {
+  background-color: var(--ls-surface);
+  color: var(--ls-ink-soft);
+  border-color: var(--ls-line);
+  box-shadow: 0 8px 24px -12px rgb(var(--ls-shadow) / 0.35);
+}
+.app-theme .ql-snow .ql-picker.ql-expanded .ql-picker-label,
+.app-theme .ql-snow .ql-picker.ql-expanded .ql-picker-options,
+.app-theme .ql-snow .ql-tooltip input[type=text] {
+  border-color: var(--ls-line);
+}
+.app-theme .ql-snow .ql-tooltip input[type=text] {
+  background-color: var(--ls-sunk);
+  color: var(--ls-ink);
+}
+.app-theme .ql-snow .ql-editor code {
+  background-color: var(--ls-sunk);
+}
+.app-theme .ql-snow .ql-editor blockquote {
+  border-left-color: var(--ls-line);
+}
+/* Many toolbar buttons do not fit a phone in one row: scroll instead of wrap */
+@media (max-width: 639px) {
+  .app-theme .ql-toolbar.ql-snow {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .app-theme .ql-toolbar.ql-snow .ql-formats {
+    flex-shrink: 0;
+    margin-right: 8px;
+  }
+}
+
+/* Room for the phone's home indicator under bottom-anchored bars */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }

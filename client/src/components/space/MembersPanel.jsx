@@ -58,15 +58,27 @@ export default function MembersPanel({ spaceId, userRole, onLeft }) {
       setOnline((prev) => prev.filter((id) => id !== String(userId)));
     };
 
-    const handleRemoved = ({ userId }) => {
+    // Membership changes arrive for every space this user is in (the watch
+    // rooms that keep the dashboard live), so check it is this one
+    const handleRemoved = ({ spaceId: id, userId }) => {
+      if (String(id) !== String(spaceId)) return;
       setMembers((prev) => prev.filter((m) => String(m.userId) !== String(userId)));
       setOnline((prev) => prev.filter((id) => id !== String(userId)));
+    };
+
+    // Someone used the invite: show them straight away, before they open the space
+    const handleMemberJoined = ({ spaceId: id, member }) => {
+      if (String(id) !== String(spaceId) || !member) return;
+      setMembers((prev) =>
+        prev.some((m) => String(m.userId) === String(member.userId)) ? prev : [...prev, member]
+      );
     };
 
     socket.on('presence_state', handlePresence);
     socket.on('user_joined', handleJoined);
     socket.on('user_left', handleLeft);
     socket.on('member_removed', handleRemoved);
+    socket.on('member_joined', handleMemberJoined);
 
     // The workspace joined the room before this panel mounted, so the
     // presence_state sent on join has already gone by — ask for it now
@@ -79,6 +91,7 @@ export default function MembersPanel({ spaceId, userRole, onLeft }) {
       socket.off('user_joined', handleJoined);
       socket.off('user_left', handleLeft);
       socket.off('member_removed', handleRemoved);
+      socket.off('member_joined', handleMemberJoined);
     };
   }, [socket, spaceId, loadMembers]);
 
@@ -112,7 +125,7 @@ export default function MembersPanel({ spaceId, userRole, onLeft }) {
   const onlineCount = members.filter(isOnline).length;
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div className="flex flex-col h-full bg-surface rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div className="px-4 py-2 bg-gray-50 border-b flex items-center justify-between shrink-0">
         <h3 className="font-semibold text-gray-700 flex items-center gap-2">
           <Users size={15} /> Members
@@ -144,7 +157,7 @@ export default function MembersPanel({ spaceId, userRole, onLeft }) {
                       {member.name.charAt(0).toUpperCase()}
                     </span>
                     <span
-                      className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-white ${
+                      className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-surface ${
                         isOnline(member) ? 'bg-emerald-500' : 'bg-gray-300'
                       }`}
                       title={isOnline(member) ? 'Online' : 'Offline'}
@@ -167,7 +180,7 @@ export default function MembersPanel({ spaceId, userRole, onLeft }) {
                     <button
                       onClick={() => handleRemove(member)}
                       disabled={removing === member.userId}
-                      className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-gray-400 hover:text-rose-600 p-1 rounded transition-all disabled:opacity-50"
+                      className="opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 focus:opacity-100 text-gray-400 hover:text-rose-600 p-1 rounded transition-all disabled:opacity-50"
                       title={`Remove ${member.name}`}
                     >
                       {removing === member.userId ? (

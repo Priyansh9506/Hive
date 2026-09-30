@@ -24,6 +24,28 @@ const timeAgo = (iso) => {
   return days < 7 ? `${days}d ago` : new Date(iso).toLocaleDateString();
 };
 
+// Brand tokens of the surrounding AppShell (light or dark)
+const look = {
+  button: 'text-ink-soft hover:text-ink hover:bg-sunk cursor-pointer',
+  panel: 'bg-surface rounded-2xl border border-line ls-lift',
+  divider: 'border-line',
+  heading: 'text-ink',
+  markAll: 'text-flame hover:opacity-80 cursor-pointer',
+  muted: 'text-ink-faint',
+  emptyIcon: 'text-ink-faint',
+  emptyTitle: 'text-ink-soft',
+  row: 'hover:bg-sunk',
+  rowUnread: 'bg-flame-wash/60',
+  iconRead: 'bg-sunk text-ink-faint',
+  iconUnread: 'bg-flame-wash text-flame',
+  titleRead: 'text-ink-soft',
+  titleUnread: 'text-ink font-medium',
+  body: 'text-ink-faint',
+  dismiss: 'text-ink-faint hover:text-ink cursor-pointer',
+  // Touch screens have no hover to reveal the dismiss button
+  touchVisible: '[@media(hover:none)]:opacity-100',
+};
+
 export default function NotificationsBell() {
   const socket = useSocket();
   const navigate = useNavigate();
@@ -118,7 +140,7 @@ export default function NotificationsBell() {
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setOpen(!open)}
-        className="relative p-2 rounded-full text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+        className={`relative p-2 rounded-full ${look.button} transition-colors`}
         title="Notifications"
         aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'}
       >
@@ -131,13 +153,13 @@ export default function NotificationsBell() {
       </button>
 
       {open && (
-        <div ref={panelRef} className="absolute right-0 top-12 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-lg border z-50 overflow-hidden">
-          <div className="px-4 py-2.5 border-b flex items-center justify-between">
-            <p className="text-sm font-semibold text-gray-800">Notifications</p>
+        <div ref={panelRef} className={`fixed sm:absolute inset-x-3 sm:inset-x-auto sm:right-0 top-16 sm:top-12 sm:w-80 ${look.panel} z-50 overflow-hidden`}>
+          <div className={`px-4 py-2.5 border-b ${look.divider} flex items-center justify-between`}>
+            <p className={`text-sm font-semibold ${look.heading}`}>Notifications</p>
             {unreadCount > 0 && (
               <button
                 onClick={handleMarkAll}
-                className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                className={`text-xs ${look.markAll} flex items-center gap-1`}
               >
                 <CheckCheck size={13} /> Mark all read
               </button>
@@ -146,14 +168,14 @@ export default function NotificationsBell() {
 
           <div className="max-h-96 overflow-y-auto">
             {loading ? (
-              <div className="flex items-center justify-center py-8 text-gray-400 text-sm">
+              <div className={`flex items-center justify-center py-8 ${look.muted} text-sm`}>
                 <Loader2 size={16} className="animate-spin mr-2" /> Loading...
               </div>
             ) : notifications.length === 0 ? (
               <div className="py-10 text-center px-6">
-                <Bell size={20} className="mx-auto text-gray-300 mb-2" />
-                <p className="text-sm text-gray-500">You're all caught up</p>
-                <p className="text-xs text-gray-400 mt-1">Invites and new members of your spaces show up here.</p>
+                <Bell size={20} className={`mx-auto ${look.emptyIcon} mb-2`} />
+                <p className={`text-sm ${look.emptyTitle}`}>You're all caught up</p>
+                <p className={`text-xs ${look.muted} mt-1`}>Invites and new members of your spaces show up here.</p>
               </div>
             ) : (
               notifications.map((n) => {
@@ -165,23 +187,23 @@ export default function NotificationsBell() {
                     tabIndex={0}
                     onClick={() => handleOpen(n)}
                     onKeyDown={(e) => e.key === 'Enter' && handleOpen(n)}
-                    className={`group flex items-start gap-3 px-4 py-3 border-b last:border-b-0 cursor-pointer hover:bg-gray-50 transition-colors ${
-                      n.read ? '' : 'bg-blue-50/40'
+                    className={`group flex items-start gap-3 px-4 py-3 border-b ${look.divider} last:border-b-0 cursor-pointer ${look.row} transition-colors ${
+                      n.read ? '' : look.rowUnread
                     }`}
                   >
-                    <span className={`p-1.5 rounded-md shrink-0 ${n.read ? 'bg-gray-100 text-gray-400' : 'bg-blue-100 text-blue-600'}`}>
+                    <span className={`p-1.5 rounded-md shrink-0 ${n.read ? look.iconRead : look.iconUnread}`}>
                       <Icon size={13} />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className={`text-sm leading-snug ${n.read ? 'text-gray-600' : 'text-gray-900 font-medium'}`}>
+                      <p className={`text-sm leading-snug ${n.read ? look.titleRead : look.titleUnread}`}>
                         {n.title}
                       </p>
-                      {n.body && <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.body}</p>}
-                      <p className="text-[10px] text-gray-400 mt-1">{timeAgo(n.createdAt)}</p>
+                      {n.body && <p className={`text-xs ${look.body} mt-0.5 line-clamp-2`}>{n.body}</p>}
+                      <p className={`text-[10px] ${look.muted} mt-1`}>{timeAgo(n.createdAt)}</p>
                     </div>
                     <button
                       onClick={(e) => handleDismiss(e, n)}
-                      className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-gray-300 hover:text-gray-600 p-0.5 rounded shrink-0 transition-opacity"
+                      className={`opacity-0 group-hover:opacity-100 focus:opacity-100 ${look.dismiss} ${look.touchVisible} p-0.5 rounded shrink-0 transition-opacity`}
                       title="Dismiss"
                     >
                       <X size={13} />

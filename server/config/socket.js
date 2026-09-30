@@ -35,7 +35,10 @@ const initSocket = (server) => {
         if (process.env.NODE_ENV !== 'production') {
           return callback(null, true);
         }
-        const allowed = (process.env.CLIENT_URL || 'http://localhost:5173').split(',').map(s => s.trim());
+        // Origins arrive without a trailing slash; tolerate one in CLIENT_URL
+        const allowed = (process.env.CLIENT_URL || 'http://localhost:5173')
+          .split(',')
+          .map(s => s.trim().replace(/\/+$/, ''));
         if (!origin || allowed.includes(origin)) {
           return callback(null, true);
         }
@@ -84,6 +87,14 @@ const initSocket = (server) => {
     // Personal room for events aimed at one user regardless of which space they
     // are viewing (invites, notifications, losing access to a space).
     socket.join(`user:${socket.user.id}`);
+
+    // Every space this user belongs to, so the dashboard hears about member
+    // counts, edits and new messages without opening each workspace (see
+    // utils/live.js). Kept current as they join and leave spaces.
+    Membership.find({ userId: socket.user.id })
+      .distinct('spaceId')
+      .then((ids) => socket.join(ids.map((id) => `watch:${id}`)))
+      .catch((err) => console.error('Error joining watch rooms:', err.message));
 
     // Join a specific study space room. The optional ack reports whether the
     // join was allowed, so the workspace can tell "not a member" from a blip.
@@ -184,6 +195,11 @@ const initSocket = (server) => {
         // Broadcast to everyone else in the room (including the sender's other tabs);
         // the sender gets the saved message via the ack and swaps out its optimistic copy
         socket.to(`space:${spaceId}`).emit('receive_message', msgPayload);
+        // Lighter signal for members elsewhere in the app (dashboard unread counts)
+        socket.to(`watch:${spaceId}`).except(`space:${spaceId}`).emit('space_message', {
+          spaceId: String(spaceId),
+          senderId: socket.user.id,
+        });
         reply({ message: msgPayload });
       } catch (err) {
         console.error('Error saving message:', err.message);

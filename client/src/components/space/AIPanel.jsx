@@ -174,7 +174,7 @@ function AskTool({ spaceId }) {
           thread.map((t) => (
             <div key={t.id} className="space-y-2">
               <div data-reveal className="flex justify-end">
-                <p className="max-w-[85%] bg-blue-600 text-white text-sm rounded-2xl rounded-br-sm px-3.5 py-2 whitespace-pre-wrap">
+                <p className="max-w-[85%] bg-flame text-flame-ink text-sm rounded-2xl rounded-br-sm px-3.5 py-2 whitespace-pre-wrap">
                   {t.question}
                 </p>
               </div>
@@ -194,7 +194,7 @@ function AskTool({ spaceId }) {
         <div ref={endRef} />
       </div>
 
-      <div className="border-t p-3 flex items-end gap-2 shrink-0 bg-white">
+      <div className="border-t p-3 flex items-end gap-2 shrink-0 bg-surface">
         {thread.length > 0 && (
           <button
             onClick={() => setThread([])}
@@ -214,7 +214,7 @@ function AskTool({ spaceId }) {
           placeholder="e.g. What's the difference between mitosis and meiosis?"
           className="flex-1 resize-none text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-200 focus:border-violet-400 max-h-32"
         />
-        <Button size="sm" onClick={ask} disabled={!question.trim() || loading} className="bg-violet-600! hover:bg-violet-700! text-white">
+        <Button size="sm" onClick={ask} disabled={!question.trim() || loading} className="bg-violet-600! hover:opacity-90 text-white">
           <SendHorizontal size={15} />
         </Button>
       </div>
@@ -395,7 +395,7 @@ function QuizTool({ spaceId }) {
             key={opt.id}
             onClick={() => setSource(opt.id)}
             className={`px-3 py-1.5 rounded-md transition-colors ${
-              source === opt.id ? 'bg-white shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-800'
+              source === opt.id ? 'bg-surface shadow-xs text-gray-900' : 'text-gray-500 hover:text-gray-800'
             }`}
           >
             {opt.label}
@@ -558,7 +558,7 @@ export default function AIPanel({ spaceId, explainRequest, onExplainHandled }) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div className="flex flex-col h-full bg-surface rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div className="px-4 py-2.5 bg-gray-50 border-b flex items-center justify-between shrink-0 gap-2">
         <h3 className="font-semibold text-gray-700 flex items-center gap-2">
           <Sparkles size={15} className="text-violet-500" /> AI Study Assistant
@@ -566,7 +566,7 @@ export default function AIPanel({ spaceId, explainRequest, onExplainHandled }) {
         <span className="text-[11px] text-gray-400 hidden sm:inline">Powered by Gemini · can make mistakes</span>
       </div>
 
-      <div className="flex gap-1 px-2 py-2 border-b overflow-x-auto shrink-0">
+      <div className="flex gap-1 px-2 py-2 border-b overflow-x-auto no-scrollbar shrink-0">
         {TOOLS.map((t) => {
           const Icon = t.icon;
           const active = tool === t.id;

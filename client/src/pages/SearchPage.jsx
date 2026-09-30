@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { BookOpen, Highlighter, Loader2, MessageSquare, Paperclip, Pin, Search } from 'lucide-react';
 import Topbar from '../components/layout/Topbar';
+import AppShell from '../components/layout/AppShell';
 import api from '../lib/api';
 
 // Wrap each occurrence of the query in <mark>, so a result shows why it matched
@@ -103,12 +104,12 @@ export default function SearchPage() {
   }, [query]);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <AppShell className="min-h-[100dvh] flex flex-col">
       <Topbar />
 
-      <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-8">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Search size={22} className="text-gray-400" />
+      <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <h1 className="font-display text-3xl sm:text-4xl tracking-tight text-gray-900 flex items-center gap-2 break-words">
+          <Search size={22} className="text-gray-400 shrink-0" />
           {query ? <>Results for “{query}”</> : 'Search'}
         </h1>
 
@@ -142,7 +143,7 @@ export default function SearchPage() {
                   <h2 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 flex items-center gap-1.5">
                     <Icon size={13} /> {group.label}
                   </h2>
-                  <ul className="bg-white border border-gray-200 rounded-lg divide-y">
+                  <ul className="bg-surface border border-gray-200 rounded-2xl divide-y divide-gray-200 overflow-hidden">
                     {results[group.key].map((r) => (
                       <li key={r._id}>
                         <Link to={group.link(r)} className="block px-4 py-3 hover:bg-gray-50 transition-colors">
@@ -170,6 +171,6 @@ export default function SearchPage() {
           </div>
         )}
       </main>
-    </div>
+    </AppShell>
   );
 }

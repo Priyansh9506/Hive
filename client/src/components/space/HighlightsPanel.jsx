@@ -88,7 +88,7 @@ export default function HighlightsPanel({ spaceId, userRole, refreshKey }) {
   const visible = filter ? highlights.filter((h) => h.type === filter) : highlights;
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div className="flex flex-col h-full bg-surface rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <div className="px-4 py-2.5 bg-gray-50 border-b flex items-center justify-between shrink-0">
         <h3 className="font-semibold text-gray-700 flex items-center gap-2">
           <Highlighter size={15} /> Highlights
@@ -101,7 +101,7 @@ export default function HighlightsPanel({ spaceId, userRole, refreshKey }) {
         <button
           onClick={() => setFilter('')}
           className={`text-xs px-2.5 py-1 rounded-full whitespace-nowrap transition-colors ${
-            filter === '' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            filter === '' ? 'bg-ink text-paper' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
         >
           All
@@ -111,7 +111,7 @@ export default function HighlightsPanel({ spaceId, userRole, refreshKey }) {
             key={t.id}
             onClick={() => setFilter(filter === t.id ? '' : t.id)}
             className={`text-xs px-2.5 py-1 rounded-full whitespace-nowrap transition-colors ${
-              filter === t.id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              filter === t.id ? 'bg-ink text-paper' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
             {t.emoji} {t.label} {counts[t.id]}
@@ -153,7 +153,7 @@ export default function HighlightsPanel({ spaceId, userRole, refreshKey }) {
                     <button
                       onClick={() => handleDelete(highlight)}
                       disabled={busyId === highlight._id}
-                      className="opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-rose-700 p-0.5 rounded transition-all disabled:opacity-50 shrink-0"
+                      className="opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 focus:opacity-100 hover:text-rose-700 p-0.5 rounded transition-all disabled:opacity-50 shrink-0"
                       title="Remove highlight"
                     >
                       {busyId === highlight._id ? (

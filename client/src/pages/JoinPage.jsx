@@ -5,33 +5,45 @@ import toast from 'react-hot-toast';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent } from '../components/ui/Card';
 import { useAuth } from '../context/AuthContext';
+import AppShell from '../components/layout/AppShell';
+import { LogoMark } from '../components/landing/primitives';
 import api from '../lib/api';
 
 // Declared outside the page so it is not a new component type on every render
 // (which would remount the card's contents each time state changes)
 const Shell = ({ children }) => (
-  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+  <AppShell className="min-h-[100dvh] flex items-center justify-center p-4">
     <div className="w-full max-w-md">
       <Link to="/" className="flex items-center justify-center gap-2 mb-6">
-        <div className="bg-primary/10 p-2 rounded-lg">
-          <BookOpen className="h-6 w-6 text-primary" />
-        </div>
-        <span className="text-xl font-bold text-gray-900">StudySync</span>
+        <LogoMark className="size-8" />
+        <span className="text-xl font-semibold tracking-tight text-ink">StudySync</span>
       </Link>
-      <Card>
+      <Card className="rounded-2xl border-line bg-surface shadow-none ls-lift">
         <CardContent className="p-6">{children}</CardContent>
       </Card>
     </div>
-  </div>
+  </AppShell>
 );
+
+// Codes are shown and linked as `W6A-BEC`; links typed or shared as `w6abec`
+// or `W6ABEC` still work, and are tidied to that form
+const canonicalCode = (raw) => {
+  const chars = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return chars.length === 6 ? `${chars.slice(0, 3)}-${chars.slice(3)}` : chars;
+};
 
 /**
  * Landing screen for an invite link (PRD §10.1): open StudySync, show the space
  * name, sign in if needed, validate the invite, join, then go to the workspace.
  */
 export default function JoinPage() {
-  const { code } = useParams();
+  const { code: rawCode } = useParams();
+  const code = canonicalCode(rawCode);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (rawCode !== code) navigate(`/join/${code}`, { replace: true });
+  }, [rawCode, code, navigate]);
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [invite, setInvite] = useState(null);
@@ -42,7 +54,7 @@ export default function JoinPage() {
   const loadInvite = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/spaces/invite/${code}`);
+      const res = await api.get(`/spaces/invite/${encodeURIComponent(code)}`);
       setInvite(res.data.invite);
     } catch (err) {
       setError(err.response?.data?.message || 'This invite link is not valid');

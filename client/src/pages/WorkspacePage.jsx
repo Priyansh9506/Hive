@@ -17,27 +17,42 @@ import {
   ArrowLeft, Users, MessageSquare, BookOpen, PanelRightClose, PanelRightOpen,
   Paperclip, Pin, Highlighter, Activity, History, UserPlus, Loader2, Wifi, WifiOff, Sparkles,
 } from 'lucide-react';
+import AppShell from '../components/layout/AppShell';
+import { SpaceGlyph, spaceColor } from '../lib/spaceIcons';
 import { useSocket, useSocketStatus } from '../context/SocketContext';
+import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import { gsap, useGSAP, prefersReducedMotion, CLEAR } from '../lib/motion';
 
+// Layout by width:
+//   < md        phones: tab strip on top, the chat is one of the tabs
+//   md .. lg    tablets upright: icon rail, the chat slides over from the right
+//   lg .. xl    tablets sideways, small laptops: icon rail, chat docked
+//   xl+         desktop: labelled sidebar, wider docked chat
 const DESKTOP_QUERY = '(min-width: 768px)'; // Tailwind `md`
+const DOCKED_CHAT_QUERY = '(min-width: 1024px)'; // Tailwind `lg`
 // Batch "I've read up to here" writes while messages keep arriving
 const MARK_READ_DEBOUNCE_MS = 2000;
 
 // The space navigation from PRD §11. `mobileOnly` entries are covered by the
 // chat sidebar on desktop.
 const TABS = [
-  { id: 'notes', label: 'Shared Notes', icon: BookOpen },
-  { id: 'chat', label: 'Discussion', icon: MessageSquare, mobileOnly: true },
-  { id: 'ai', label: 'AI Assistant', icon: Sparkles },
-  { id: 'resources', label: 'Resources', icon: Paperclip },
-  { id: 'pins', label: 'Pinned', icon: Pin },
-  { id: 'highlights', label: 'Highlights', icon: Highlighter },
-  { id: 'activity', label: 'Activity', icon: Activity },
-  { id: 'members', label: 'Members', icon: Users },
-  { id: 'history', label: 'Version history', icon: History },
+  { id: 'notes', label: 'Shared Notes', short: 'Notes', icon: BookOpen },
+  { id: 'chat', label: 'Discussion', short: 'Chat', icon: MessageSquare, mobileOnly: true },
+  { id: 'ai', label: 'AI Assistant', short: 'AI', icon: Sparkles },
+  { id: 'resources', label: 'Resources', short: 'Files', icon: Paperclip },
+  { id: 'pins', label: 'Pinned', short: 'Pinned', icon: Pin },
+  { id: 'highlights', label: 'Highlights', short: 'Highlights', icon: Highlighter },
+  { id: 'activity', label: 'Activity', short: 'Activity', icon: Activity },
+  { id: 'members', label: 'Members', short: 'Members', icon: Users },
+  { id: 'history', label: 'Version history', short: 'History', icon: History },
 ];
+
+const Badge = ({ count, className = '' }) => (
+  <span className={`min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold leading-4 text-center ${className}`}>
+    {count > 99 ? '99+' : count}
+  </span>
+);
 const TAB_IDS = TABS.map((t) => t.id);
 
 export default function WorkspacePage() {
@@ -45,6 +60,7 @@ export default function WorkspacePage() {
   const navigate = useNavigate();
   const socket = useSocket();
   const socketStatus = useSocketStatus();
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [space, setSpace] = useState(null);
@@ -57,8 +73,10 @@ export default function WorkspacePage() {
     return TAB_IDS.includes(tab) ? tab : 'notes';
   });
   const [jumpToMessageId, setJumpToMessageId] = useState(() => searchParams.get('message'));
-  const [chatOpen, setChatOpen] = useState(true);
   const [isDesktop, setIsDesktop] = useState(() => window.matchMedia(DESKTOP_QUERY).matches);
+  const [chatDocked, setChatDocked] = useState(() => window.matchMedia(DOCKED_CHAT_QUERY).matches);
+  // Docked chat starts open; the slide-over one waits to be asked for
+  const [chatOpen, setChatOpen] = useState(() => window.matchMedia(DOCKED_CHAT_QUERY).matches);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [highlightTarget, setHighlightTarget] = useState(null);
   const [explainRequest, setExplainRequest] = useState(null); // { text, context } from the editor
@@ -66,6 +84,7 @@ export default function WorkspacePage() {
   const markReadTimer = useRef(null);
   const centerRef = useRef(null);
   const chatSidebarRef = useRef(null);
+  const tabStripRef = useRef(null);
 
   // The deep link has been read into state; drop it so a refresh does not replay it
   useEffect(() => {
@@ -77,6 +96,18 @@ export default function WorkspacePage() {
   useEffect(() => {
     const mq = window.matchMedia(DESKTOP_QUERY);
     const onChange = (e) => setIsDesktop(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  // Turning a tablet upright turns the docked chat into a slide-over; close it
+  // rather than cover the notes, and reopen it when there is room again
+  useEffect(() => {
+    const mq = window.matchMedia(DOCKED_CHAT_QUERY);
+    const onChange = (e) => {
+      setChatDocked(e.matches);
+      setChatOpen(e.matches);
+    };
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, []);
@@ -149,6 +180,44 @@ export default function WorkspacePage() {
     };
   }, [socket, spaceId, navigate]);
 
+  // ---------- Live header ----------
+  // Name, member count and join code follow changes made anywhere, so nobody
+  // has to reload to see that someone joined or the owner renamed the space
+  const userRole = space?.userRole;
+  useEffect(() => {
+    if (!socket || !spaceId) return;
+    const mine = (id) => String(id) === String(spaceId);
+
+    const handleUpdated = ({ spaceId: id, ...changes }) => {
+      if (mine(id)) setSpace((s) => (s ? { ...s, ...changes } : s));
+    };
+    const handleCount = ({ spaceId: id, membersCount }) => {
+      if (mine(id) && membersCount != null) setSpace((s) => (s ? { ...s, membersCount } : s));
+    };
+    const handleMemberJoined = (event) => {
+      handleCount(event);
+      const { spaceId: id, member } = event;
+      // The owner already gets this as a notification
+      if (mine(id) && member && String(member.userId) !== String(user?.id) && userRole !== 'owner') {
+        toast(`${member.name} joined the space`, { icon: '👋' });
+      }
+    };
+    // Changes made while the connection was down arrive as nothing: re-read
+    const resync = () =>
+      api.get(`/spaces/${spaceId}`).then((res) => setSpace(res.data.space)).catch(() => {});
+
+    socket.on('space_updated', handleUpdated);
+    socket.on('member_joined', handleMemberJoined);
+    socket.on('member_removed', handleCount);
+    socket.io.on('reconnect', resync);
+    return () => {
+      socket.off('space_updated', handleUpdated);
+      socket.off('member_joined', handleMemberJoined);
+      socket.off('member_removed', handleCount);
+      socket.io.off('reconnect', resync);
+    };
+  }, [socket, spaceId, user?.id, userRole]);
+
   // ---------- Unread (PRD §14) ----------
   const markRead = useCallback(
     (delay = 0) => {
@@ -208,6 +277,21 @@ export default function WorkspacePage() {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [chatVisible, markRead]);
 
+  const chatOverlay = isDesktop && !chatDocked && chatOpen;
+  useEffect(() => {
+    if (!chatOverlay) return;
+    const onKey = (e) => e.key === 'Escape' && setChatOpen(false);
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [chatOverlay]);
+
+  // Phones: keep the selected tab in view in the scrolling strip
+  useEffect(() => {
+    tabStripRef.current
+      ?.querySelector('[aria-current="page"]')
+      ?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+  }, [centerTab]);
+
   // ---------- Cross-panel actions ----------
   const openChat = () => (isDesktop ? setChatOpen(true) : setActiveTab('chat'));
 
@@ -258,21 +342,20 @@ export default function WorkspacePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-500 gap-2">
+      <AppShell className="min-h-[100dvh] flex items-center justify-center text-ink-faint gap-2">
         <Loader2 size={18} className="animate-spin" /> Loading space...
-      </div>
+      </AppShell>
     );
   }
   if (!space) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-3 text-gray-500">
+      <AppShell className="min-h-[100dvh] flex flex-col items-center justify-center gap-3 px-6 text-center text-ink-soft">
         <p>{loadError || 'Space not found or unauthorized.'}</p>
-        <Link to="/dashboard" className="text-sm text-blue-600 hover:underline">Back to dashboard</Link>
-      </div>
+        <Link to="/dashboard" className="text-sm text-flame hover:underline">Back to dashboard</Link>
+      </AppShell>
     );
   }
 
-  const userRole = space.userRole;
   const chatPanel = (
     <ChatPanel
       spaceId={spaceId}
@@ -280,6 +363,7 @@ export default function WorkspacePage() {
       onHighlight={handleHighlight}
       jumpToMessageId={jumpToMessageId}
       onJumpHandled={handleJumpHandled}
+      onClose={isDesktop && !chatDocked ? () => setChatOpen(false) : undefined}
     />
   );
 
@@ -310,30 +394,44 @@ export default function WorkspacePage() {
     }
   };
 
+  const chatToggleLabel = chatOpen ? 'Hide chat' : 'Show chat';
+
   return (
-    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
-      <Topbar />
+    <AppShell className="h-[100dvh] flex flex-col overflow-hidden">
+      {/* A phone held sideways has no height to spare; the header below still
+          leads back to the dashboard */}
+      <Topbar className="[@media(max-height:520px)]:hidden" />
 
       {/* Workspace Header */}
-      <div className="bg-white border-b px-4 py-3 flex justify-between items-center shrink-0 gap-3">
-        <div className="flex items-center gap-4 min-w-0">
-          <Link to="/dashboard" className="text-gray-500 hover:text-gray-900 transition-colors p-1 rounded-full hover:bg-gray-100 shrink-0">
+      <div className="bg-surface border-b border-line px-3 sm:px-4 py-2.5 sm:py-3 flex justify-between items-center shrink-0 gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <Link
+            to="/dashboard"
+            aria-label="Back to dashboard"
+            className="text-ink-faint hover:text-ink transition-colors p-1.5 rounded-full hover:bg-sunk shrink-0"
+          >
             <ArrowLeft size={20} />
           </Link>
+          <div
+            className="hidden sm:grid size-9 rounded-xl place-items-center shrink-0 shadow-sm"
+            style={{ backgroundColor: spaceColor(space) }}
+          >
+            <SpaceGlyph icon={space.icon} size={18} className="text-white" />
+          </div>
           <div className="min-w-0">
-            <h2 className="text-lg font-bold text-gray-900 truncate">{space.name}</h2>
-            <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
+            <h2 className="text-base sm:text-lg font-semibold tracking-tight text-ink truncate">{space.name}</h2>
+            <div className="flex items-center gap-x-2 gap-y-0.5 text-xs text-ink-faint flex-wrap">
               <button
                 onClick={() => setActiveTab('members')}
-                className="flex items-center gap-1 hover:text-gray-800"
+                className="flex items-center gap-1 hover:text-ink cursor-pointer"
               >
-                <Users size={12} /> {space.membersCount} members
+                <Users size={12} /> {space.membersCount} <span className="hidden min-[400px]:inline">members</span>
               </button>
-              <span className="hidden sm:inline">•</span>
+              <span className="hidden sm:inline">·</span>
               <span className="hidden sm:inline">
-                Join Code: <code className="bg-gray-100 px-1 py-0.5 rounded text-gray-700">{space.joinCode}</code>
+                Code <code className="bg-sunk px-1.5 py-0.5 rounded-md text-ink-soft font-geist-mono">{space.joinCode}</code>
               </span>
-              <span>•</span>
+              <span>·</span>
               {/* PRD §21: say plainly whether live updates are flowing */}
               {socketStatus === 'connected' ? (
                 <span className="text-emerald-600 flex items-center gap-1">
@@ -348,58 +446,82 @@ export default function WorkspacePage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={() => setInviteOpen(true)}
-            className="flex items-center gap-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors"
+            aria-label="Invite"
+            className="flex items-center gap-1.5 text-sm font-medium bg-flame text-flame-ink hover:opacity-90 h-9 px-3 sm:px-4 rounded-full transition-opacity cursor-pointer"
           >
             <UserPlus size={16} />
             <span className="hidden sm:inline">Invite</span>
           </button>
 
-          {/* Toggle chat panel button (desktop) */}
+          {/* Chat toggle (tablet and up; on phones the chat is a tab) */}
           <button
             onClick={() => setChatOpen(!chatOpen)}
-            className="hidden md:flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors relative"
-            title={chatOpen ? 'Hide chat' : 'Show chat'}
+            className={`hidden md:flex items-center gap-1.5 text-sm h-9 px-3 rounded-full border border-line transition-colors cursor-pointer ${
+              chatOpen ? 'bg-sunk text-ink' : 'text-ink-soft hover:text-ink hover:bg-sunk'
+            }`}
+            title={chatToggleLabel}
+            aria-label={chatToggleLabel}
+            aria-expanded={chatOpen}
           >
-            {chatOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
-            <span className="hidden lg:inline">{chatOpen ? 'Hide Chat' : 'Show Chat'}</span>
-            {!chatOpen && unread > 0 && (
-              <span className="min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold leading-4 text-center">
-                {unread > 99 ? '99+' : unread}
-              </span>
-            )}
+            {chatOpen ? <PanelRightClose size={17} /> : <PanelRightOpen size={17} />}
+            <span className="hidden xl:inline">{chatToggleLabel}</span>
+            {!chatOpen && unread > 0 && <Badge count={unread} />}
           </button>
         </div>
       </div>
 
-      {/* Main Workspace Layout */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Phones: scrolling tab strip */}
+      <nav
+        ref={tabStripRef}
+        aria-label="Space sections"
+        className="md:hidden flex gap-1 overflow-x-auto no-scrollbar px-2 py-1.5 bg-surface border-b border-line shrink-0"
+      >
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          const active = centerTab === tab.id;
+          const badge = tab.id === 'chat' && unread > 0 ? unread : 0;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              aria-current={active ? 'page' : undefined}
+              className={`shrink-0 flex items-center gap-1.5 h-8 px-3 rounded-full text-[13px] font-medium transition-colors cursor-pointer ${
+                active ? 'bg-ink text-paper' : 'text-ink-soft hover:bg-sunk'
+              }`}
+            >
+              <Icon size={15} className="shrink-0" />
+              {tab.short}
+              {badge > 0 && <Badge count={badge} />}
+            </button>
+          );
+        })}
+      </nav>
 
-        {/* Left Sidebar - Navigation */}
-        <div className="w-14 sm:w-56 bg-white border-r flex flex-col shrink-0">
-          <nav className="p-2 space-y-1 flex-1 overflow-y-auto">
-            {TABS.map((tab) => {
+      {/* Main Workspace Layout */}
+      <div className="flex-1 flex overflow-hidden min-h-0">
+
+        {/* Tablet and up: icon rail, labelled from xl */}
+        <div className="hidden md:flex w-16 xl:w-56 bg-surface border-r border-line flex-col shrink-0">
+          <nav aria-label="Space sections" className="p-2 space-y-1 flex-1 overflow-y-auto no-scrollbar">
+            {TABS.filter((tab) => !tab.mobileOnly).map((tab) => {
               const Icon = tab.icon;
               const active = centerTab === tab.id;
-              const badge = tab.id === 'chat' && unread > 0 ? unread : 0;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   title={tab.label}
-                  className={`relative w-full flex items-center gap-3 px-3 py-2 rounded-md font-medium text-sm transition-colors ${
-                    tab.mobileOnly ? 'md:hidden' : ''
-                  } ${active ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}
+                  aria-label={tab.label}
+                  aria-current={active ? 'page' : undefined}
+                  className={`w-full flex items-center justify-center xl:justify-start gap-3 h-11 xl:h-10 px-3 rounded-xl font-medium text-sm transition-colors cursor-pointer ${
+                    active ? 'bg-flame-wash text-flame' : 'text-ink-soft hover:bg-sunk hover:text-ink'
+                  }`}
                 >
                   <Icon size={18} className="shrink-0" />
-                  <span className="hidden sm:block truncate">{tab.label}</span>
-                  {badge > 0 && (
-                    <span className="absolute top-1 right-1 sm:static sm:ml-auto min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold leading-4 text-center">
-                      {badge > 99 ? '99+' : badge}
-                    </span>
-                  )}
+                  <span className="hidden xl:block truncate">{tab.label}</span>
                 </button>
               );
             })}
@@ -407,7 +529,7 @@ export default function WorkspacePage() {
         </div>
 
         {/* Center Content */}
-        <div ref={centerRef} className="flex-1 p-2 sm:p-4 md:p-6 overflow-hidden flex flex-col min-w-0">
+        <div ref={centerRef} className="flex-1 p-2 sm:p-3 lg:p-4 xl:p-6 overflow-hidden flex flex-col min-w-0">
           {/* The editor stays mounted while other panels are shown, so its live
               connection, cursor presence and unsaved edits survive a tab switch */}
           <div className={centerTab === 'notes' ? 'flex-1 min-h-0 flex flex-col' : 'hidden'}>
@@ -430,12 +552,30 @@ export default function WorkspacePage() {
           {centerTab !== 'notes' && centerTab !== 'ai' && <div className="flex-1 min-h-0">{renderPanel()}</div>}
         </div>
 
-        {/* Right Sidebar — Chat Panel (desktop only). Exactly one ChatPanel is
-            ever mounted, so there is one set of chat listeners per page. */}
+        {/* Chat beside the notes (tablet and up). Docked from lg; below that it
+            slides over the page. Exactly one ChatPanel is ever mounted, so
+            there is one set of chat listeners per page. */}
         {isDesktop && chatOpen && (
-          <div ref={chatSidebarRef} className="flex w-80 lg:w-96 shrink-0 border-l p-2">
-            <div className="w-full">{chatPanel}</div>
-          </div>
+          <>
+            {chatOverlay && (
+              <div
+                className="fixed inset-0 z-40 bg-black/30"
+                onClick={() => setChatOpen(false)}
+                aria-hidden="true"
+              />
+            )}
+            <aside
+              ref={chatSidebarRef}
+              aria-label="Discussion"
+              className={
+                chatOverlay
+                  ? 'fixed inset-y-0 right-0 z-50 w-[min(24rem,92vw)] flex flex-col bg-paper border-l border-line shadow-2xl'
+                  : 'flex flex-col w-80 xl:w-96 shrink-0 border-l border-line p-2'
+              }
+            >
+              <div className={`w-full flex-1 min-h-0 ${chatOverlay ? 'p-2' : ''}`}>{chatPanel}</div>
+            </aside>
+          </>
         )}
       </div>
 
@@ -453,6 +593,6 @@ export default function WorkspacePage() {
         spaceId={spaceId}
         target={highlightTarget}
       />
-    </div>
+    </AppShell>
   );
 }

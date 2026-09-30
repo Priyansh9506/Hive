@@ -6,7 +6,8 @@ import { Label } from '../components/ui/Label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { User, Mail, Calendar, Lock, Save, ArrowLeft, Shield, BookOpen, Camera } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import api from '../lib/api';
+import api, { setAccessToken } from '../lib/api';
+import AppShell from '../components/layout/AppShell';
 import toast from 'react-hot-toast';
 import Cropper from 'react-easy-crop';
 import getCroppedImg from '../utils/cropImage';
@@ -128,9 +129,9 @@ export default function ProfilePage() {
         currentPassword,
         newPassword,
       });
-      // Update the token
+      // Other sessions were signed out; this one continues with a new token
       if (res.data.token) {
-        localStorage.setItem('token', res.data.token);
+        setAccessToken(res.data.token);
       }
       toast.success('Password changed successfully');
       setCurrentPassword('');
@@ -161,29 +162,29 @@ export default function ProfilePage() {
     : 'U';
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <AppShell className="min-h-[100dvh]">
       {/* Header */}
-      <header className="bg-white border-b sticky top-0 z-40">
+      <header className="bg-paper/80 backdrop-blur-md border-b border-line sticky top-0 z-40">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-3">
+          <div className="flex justify-between items-center h-14 sm:h-16 gap-3">
+            <div className="flex items-center gap-3 min-w-0">
               <Link
                 to="/dashboard"
                 className="text-gray-500 hover:text-gray-900 transition-colors p-1.5 rounded-full hover:bg-gray-100"
               >
                 <ArrowLeft size={20} />
               </Link>
-              <h1 className="text-lg font-bold text-gray-900">Profile Settings</h1>
+              <h1 className="text-lg font-semibold tracking-tight text-gray-900 truncate">Profile settings</h1>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-4 sm:space-y-6">
         {/* Profile Overview Card */}
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-center gap-5">
+            <div className="flex flex-col sm:flex-row items-center text-center sm:text-left gap-4 sm:gap-5">
               <div className="relative group shrink-0">
                 {user?.avatarUrl ? (
                   <img
@@ -192,7 +193,7 @@ export default function ProfilePage() {
                     className="h-20 w-20 rounded-full object-cover shadow-lg border border-gray-200"
                   />
                 ) : (
-                  <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                  <div className="h-20 w-20 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-flame-ink text-2xl font-bold shadow-lg">
                     {initials}
                   </div>
                 )}
@@ -207,13 +208,17 @@ export default function ProfilePage() {
                     disabled={uploadingAvatar}
                   />
                 </label>
+                {/* Touch screens cannot hover to reveal "Edit": show a badge */}
+                <span className="[@media(hover:hover)]:hidden pointer-events-none absolute -bottom-0.5 -right-0.5 size-7 rounded-full bg-flame text-flame-ink grid place-items-center ring-2 ring-surface">
+                  <Camera size={14} />
+                </span>
               </div>
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 w-full">
                 <h2 className="text-xl font-bold text-gray-900 truncate">{user?.name}</h2>
-                <p className="text-sm text-gray-500 truncate flex items-center gap-1.5 mt-0.5">
+                <p className="text-sm text-gray-500 truncate flex items-center justify-center sm:justify-start gap-1.5 mt-0.5">
                   <Mail size={14} /> {user?.email}
                 </p>
-                <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-gray-400">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-1 mt-2 text-xs text-gray-400">
                   <span className="flex items-center gap-1">
                     <Calendar size={12} /> Joined {joinedDate}
                   </span>
@@ -333,7 +338,7 @@ export default function ProfilePage() {
             <CardTitle className="text-base text-red-600">Account Actions</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-gray-700">Sign out of your account</p>
                 <p className="text-xs text-gray-400">You will need to log in again</p>
@@ -348,7 +353,7 @@ export default function ProfilePage() {
 
       {/* Crop Modal */}
       <Modal isOpen={cropModalOpen} onClose={() => !uploadingAvatar && setCropModalOpen(false)} title="Crop Profile Picture">
-        <div className="relative w-full h-64 bg-gray-900 rounded-md overflow-hidden">
+        <div className="relative w-full h-64 bg-[#18181b] rounded-xl overflow-hidden">
           {imageSrc && (
             <Cropper
               image={imageSrc}
@@ -386,6 +391,6 @@ export default function ProfilePage() {
           </div>
         </div>
       </Modal>
-    </div>
+    </AppShell>
   );
 }

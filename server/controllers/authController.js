@@ -1,6 +1,32 @@
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
+const {
+  startSession,
+  rotateSession,
+  endSession,
+  endOtherSessions,
+  clearRefreshCookie,
+} = require('../utils/session');
+
+const publicUser = (user) => ({
+  id: user._id,
+  name: user.name,
+  email: user.email,
+  avatarUrl: user.avatarUrl,
+  createdAt: user.createdAt,
+});
+
+// Every way of signing in ends here: a new session (refresh cookie) plus a
+// short-lived access token in the body
+const sendSignedIn = async (req, res, status, user) => {
+  const session = await startSession(req, res, user._id);
+  res.status(status).json({
+    success: true,
+    token: generateToken(user._id, session._id),
+    user: publicUser(user),
+  });
+};
 
 // @desc    Register new user
 // @route   POST /api/auth/register
@@ -33,20 +59,7 @@ const register = async (req, res, next) => {
       avatarUrl: defaultAvatar,
     });
 
-    // Generate token
-    const token = generateToken(user._id);
-
-    res.status(201).json({
-      success: true,
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        avatarUrl: user.avatarUrl,
-        createdAt: user.createdAt,
-      },
-    });
+    await sendSignedIn(req, res, 201, user);
   } catch (error) {
     next(error);
   }
@@ -85,20 +98,7 @@ const login = async (req, res, next) => {
       });
     }
 
-    // Generate token
-    const token = generateToken(user._id);
-
-    res.status(200).json({
-      success: true,
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        avatarUrl: user.avatarUrl,
-        createdAt: user.createdAt,
-      },
-    });
+    await sendSignedIn(req, res, 200, user);
   } catch (error) {
     next(error);
   }
@@ -132,16 +132,59 @@ const getMe = async (req, res, next) => {
   }
 };
 
-// @desc    Logout user (client-side token removal; server-side placeholder)
+// @desc    Swap the refresh cookie for a new one and a fresh access token
+// @route   POST /api/auth/refresh
+// @access  Public (the httpOnly refresh cookie is the credential)
+//
+// Called when the page loads (to restore the session) and shortly before the
+// access token runs out. Fails once the session was signed out, sat unused
+// past the idle limit, reached its maximum age, or its token was replayed.
+const refresh = async (req, res, next) => {
+  try {
+    const result = await rotateSession(req, res);
+    if (!result.ok) {
+      clearRefreshCookie(req, res);
+      return res.status(401).json({
+        success: false,
+        reason: result.reason,
+        message:
+          result.reason === 'missing'
+            ? 'Not signed in'
+            : 'Your session has expired. Please log in again.',
+      });
+    }
+
+    const user = await User.findById(result.session.userId);
+    if (!user) {
+      await endSession(req);
+      clearRefreshCookie(req, res);
+      return res.status(401).json({ success: false, reason: 'revoked', message: 'User not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      token: generateToken(user._id, result.session._id),
+      user: publicUser(user),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Sign out this browser: end its session and drop the cookie
 // @route   POST /api/auth/logout
-// @access  Private
-const logout = async (req, res) => {
-  // In a stateless JWT setup, logout is primarily client-side (delete token).
-  // This endpoint exists for API completeness and future token blacklisting.
-  res.status(200).json({
-    success: true,
-    message: 'Logged out successfully',
-  });
+// @access  Public (works even after the access token has run out)
+const logout = async (req, res, next) => {
+  try {
+    await endSession(req);
+    clearRefreshCookie(req, res);
+    res.status(200).json({
+      success: true,
+      message: 'Logged out successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 // @desc    Update user profile
@@ -225,8 +268,10 @@ const changePassword = async (req, res, next) => {
     user.password = await bcrypt.hash(newPassword, salt);
     await user.save();
 
-    // Issue new token after password change
-    const token = generateToken(user._id);
+    // Anyone signed in with the old password is signed out everywhere else;
+    // this browser keeps its session
+    await endOtherSessions(user._id, req.sessionId);
+    const token = generateToken(user._id, req.sessionId);
 
     res.status(200).json({
       success: true,
@@ -347,22 +392,10 @@ const googleLogin = async (req, res, next) => {
       }
     }
 
-    const token = generateToken(user._id);
-
-    res.status(200).json({
-      success: true,
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        avatarUrl: user.avatarUrl,
-        createdAt: user.createdAt,
-      },
-    });
+    await sendSignedIn(req, res, 200, user);
   } catch (error) {
     next(error);
   }
 };
 
-module.exports = { register, login, getMe, logout, updateProfile, changePassword, uploadAvatar, googleLogin };
+module.exports = { register, login, getMe, refresh, logout, updateProfile, changePassword, uploadAvatar, googleLogin };
