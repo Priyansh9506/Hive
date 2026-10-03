@@ -9,6 +9,7 @@ import { EditSpaceModal } from '../components/space/EditSpaceModal';
 import { DeleteSpaceModal } from '../components/space/DeleteSpaceModal';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
+import { getCached, setCached, isNetworkError } from '../lib/offlineCache';
 import { useReveal } from '../hooks/useReveal';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
@@ -148,8 +149,12 @@ export default function DashboardPage() {
     try {
       const response = await api.get('/spaces');
       setSpaces(response.data.spaces);
+      setCached('spaces', response.data.spaces);
     } catch (error) {
-      console.error('Failed to fetch spaces', error);
+      // Offline: show the spaces from the last visit
+      const cached = isNetworkError(error) ? getCached('spaces') : null;
+      if (cached) setSpaces(cached);
+      else console.error('Failed to fetch spaces', error);
     } finally {
       setLoading(false);
     }

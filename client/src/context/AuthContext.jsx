@@ -7,26 +7,68 @@ import api, {
   refreshSession,
   setAccessToken,
 } from '../lib/api';
+import { getCachedUser, setCachedUser, isNetworkError } from '../lib/offlineCache';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Signed in from the cached profile because the server could not be reached
+  // (offline, or the host asleep). There is no access token yet, so live
+  // features wait; the session is renewed as soon as the server answers.
+  const [offlineSession, setOfflineSession] = useState(false);
 
   // Restore the session from the refresh cookie, if this browser has one
   const restoreSession = useCallback(async () => {
     try {
       if (!hasSessionHint()) return;
       const data = await refreshSession();
+      setCachedUser(data.user);
       setUser(data.user);
     } catch (error) {
-      if (error.response?.status !== 401) console.error('Failed to restore session:', error);
-      setUser(null);
+      const cached = getCachedUser();
+      if (isNetworkError(error) && cached) {
+        // No answer is not a refusal: the session is most likely still valid,
+        // so stay signed in (notes edited now are kept on this device) and
+        // only a real 401 from the server signs the user out
+        setUser(cached);
+        setOfflineSession(true);
+      } else {
+        if (error.response?.status !== 401) console.error('Failed to restore session:', error);
+        setUser(null);
+      }
     } finally {
       setIsLoading(false);
     }
   }, []);
+
+  // While signed in offline, renew the session the moment the network returns
+  // (and every so often, since "online" does not mean the server is reachable)
+  useEffect(() => {
+    if (!offlineSession) return;
+    let cancelled = false;
+    const retry = () => {
+      if (!navigator.onLine) return;
+      refreshSession()
+        .then((data) => {
+          if (cancelled) return;
+          setCachedUser(data.user);
+          setUser(data.user);
+          setOfflineSession(false);
+        })
+        // A refusal ends the session through 'auth:unauthorized'; anything else
+        // is still offline and the next attempt will try again
+        .catch(() => {});
+    };
+    window.addEventListener('online', retry);
+    const timer = setInterval(retry, 20 * 1000);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('online', retry);
+      clearInterval(timer);
+    };
+  }, [offlineSession]);
 
   useEffect(() => {
     restoreSession();
@@ -34,6 +76,7 @@ export const AuthProvider = ({ children }) => {
     // The server refused to renew the session (see lib/api.js)
     const handleUnauthorized = (e) => {
       setUser(null);
+      setOfflineSession(false);
       if (e.detail?.reason === 'expired') {
         toast.error('Your session has expired. Please log in again.', { id: 'session-expired' });
       }
@@ -47,7 +90,11 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
       } else {
         refreshSession()
-          .then((data) => setUser(data.user))
+          .then((data) => {
+            setCachedUser(data.user);
+            setUser(data.user);
+            setOfflineSession(false);
+          })
           .catch(() => {});
       }
     };
@@ -62,7 +109,9 @@ export const AuthProvider = ({ children }) => {
 
   const signedIn = ({ token, user: userData }) => {
     setAccessToken(token);
+    setCachedUser(userData);
     setUser(userData);
+    setOfflineSession(false);
     return userData;
   };
 
@@ -102,6 +151,10 @@ export const AuthProvider = ({ children }) => {
     loginWithGoogle,
     logout,
     isAuthenticated: !!user,
+    // Signed in from cache without a live session (see offlineSession above)
+    offlineSession,
+    // Signed in with an access token: live features (socket, sync) can connect
+    sessionReady: !!user && !offlineSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

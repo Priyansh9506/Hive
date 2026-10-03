@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Send, Loader2, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Highlighter, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../lib/api';
+import { getCached, setCached, isNetworkError } from '../../lib/offlineCache';
 import { gsap, useGSAP, prefersReducedMotion, CLEAR } from '../../lib/motion';
 
 // Generate a simple client-side unique ID for optimistic messages
@@ -95,8 +96,16 @@ export default function ChatPanel({ spaceId, userRole, onHighlight, jumpToMessag
         setMessages((prev) => mergeMessages(prev, res.data.messages));
         setHasMore(res.data.hasMore);
         isInitialLoad.current = true;
+        setCached(`messages:${spaceId}`, res.data.messages);
       } catch (err) {
-        console.error('Failed to load messages', err);
+        // Offline: show the conversation as it was on the last visit
+        const cached = isNetworkError(err) ? getCached(`messages:${spaceId}`) : null;
+        if (cached) {
+          setMessages((prev) => mergeMessages(prev, cached));
+          isInitialLoad.current = true;
+        } else {
+          console.error('Failed to load messages', err);
+        }
       } finally {
         setLoadingHistory(false);
       }
@@ -282,7 +291,13 @@ export default function ChatPanel({ spaceId, userRole, onHighlight, jumpToMessag
   const sendMessage = (e) => {
     e.preventDefault();
     const content = input.trim();
-    if (!content || !socket) return;
+    if (!content) return;
+    // No socket yet: the page was opened offline. (A socket that dropped
+    // mid-session queues the message and sends it on reconnect.)
+    if (!socket) {
+      toast("You're offline. Your message is kept here; send it once you're back online.", { icon: '📴' });
+      return;
+    }
 
     const cid = clientMsgId();
 

@@ -11,6 +11,7 @@ import SearchPage from './pages/SearchPage';
 import NotFoundPage from './pages/NotFoundPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import RouteTransition from './components/motion/RouteTransition';
+import ConnectivityNotice from './components/layout/ConnectivityNotice';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 
@@ -29,6 +30,7 @@ function App() {
       <SocketProvider>
         <Router>
           <Toaster position="top-right" />
+          <ConnectivityNotice />
           <RouteTransition>
           <Routes>
             <Route path="/" element={<LandingPage />} />

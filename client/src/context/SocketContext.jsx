@@ -18,12 +18,14 @@ export function useSocketStatus() {
 }
 
 export function SocketProvider({ children }) {
-  const { isAuthenticated } = useAuth();
+  // Signed in with an access token: a session restored offline from cache has
+  // none yet, and connects once AuthContext renews it
+  const { sessionReady } = useAuth();
   const [socket, setSocket] = useState(null);
   const [status, setStatus] = useState('connecting');
 
   useEffect(() => {
-    if (isAuthenticated && getAccessToken()) {
+    if (sessionReady && getAccessToken()) {
       const backendUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
       const newSocket = io(backendUrl, {
         // Read on every (re)connect, so a reconnect uses the current access
@@ -62,7 +64,7 @@ export function SocketProvider({ children }) {
       // Disconnect if logged out
       setSocket(null);
     }
-  }, [isAuthenticated]);
+  }, [sessionReady]);
 
   return (
     <SocketContext.Provider value={socket}>

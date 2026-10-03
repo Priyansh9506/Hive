@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { clearOfflineCache } from './offlineCache';
 
 const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -80,10 +81,21 @@ export function setAccessToken(token) {
   }
 }
 
+/**
+ * Whether the access token can still authenticate a request or a WebSocket
+ * handshake for at least `marginMs` (it is checked again on the server).
+ */
+export const isAccessTokenFresh = (marginMs = 30 * 1000) => {
+  if (!accessToken) return false;
+  const exp = expiresAt(accessToken);
+  return !exp || exp - Date.now() > marginMs;
+};
+
 /** Forget the session in this tab. `reason` reaches AuthContext for the message. */
 export function endLocalSession(reason) {
   setAccessToken(null);
   setHint(false);
+  clearOfflineCache();
   if (reason) window.dispatchEvent(new CustomEvent('auth:unauthorized', { detail: { reason } }));
 }
 

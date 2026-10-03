@@ -1,13 +1,16 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
+import { IndexeddbPersistence } from 'y-indexeddb';
 import { QuillBinding } from 'y-quill';
 import Quill from 'quill';
 import QuillCursors from 'quill-cursors';
 import 'quill/dist/quill.snow.css';
 import { useAuth } from '../../context/AuthContext';
-import api, { getAccessToken } from '../../lib/api';
-import { Cloud, CheckCircle2, Loader2, Save, Wifi, WifiOff, Highlighter, Users, ShieldAlert, Sparkles } from 'lucide-react';
+import api, { getAccessToken, isAccessTokenFresh, refreshSession } from '../../lib/api';
+import { isNetworkError } from '../../lib/offlineCache';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { Cloud, CloudOff, CheckCircle2, Loader2, Save, Wifi, WifiOff, Highlighter, Users, ShieldAlert, Sparkles, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 Quill.register('modules/cursors', QuillCursors);
@@ -24,27 +27,43 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
   // Whether the notes changed since this tab last saved a version. Unknown on
   // load, so the first "Save Now" always asks the server.
   const changedSinceVersionRef = useRef(true);
+  // HTML copy that could not be sent while offline; sent once the doc re-syncs
+  const pendingHtmlRef = useRef(null);
   const { user } = useAuth();
+  const online = useOnlineStatus();
 
   const [status, setStatus] = useState('connecting');
-  const [saveStatus, setSaveStatus] = useState('saved'); // 'saved' | 'saving' | 'unsaved' | 'error'
+  // 'saved' | 'saving' | 'unsaved' | 'local' (kept on this device until reconnect) | 'error'
+  const [saveStatus, setSaveStatus] = useState('saved');
   const [lastSavedTime, setLastSavedTime] = useState(null);
   const [peers, setPeers] = useState([]);       // others editing right now
   const [selection, setSelection] = useState(''); // currently selected text
   const [authError, setAuthError] = useState(false);
   const [versionSaving, setVersionSaving] = useState(false);
 
-  // Core save function to MongoDB
+  // Saves the HTML copy of the notes (used for search and as a fallback). The
+  // notes themselves travel through Yjs; offline, both wait on this device.
   const saveToDatabase = useCallback(async (contentToSave) => {
     if (!spaceId) return;
+    if (!navigator.onLine) {
+      pendingHtmlRef.current = contentToSave;
+      setSaveStatus('local');
+      return;
+    }
     try {
       setSaveStatus('saving');
       await api.patch(`/spaces/${spaceId}/notes`, {
         notesContent: contentToSave,
       });
+      if (pendingHtmlRef.current === contentToSave) pendingHtmlRef.current = null;
       setSaveStatus('saved');
       setLastSavedTime(new Date());
     } catch (err) {
+      if (isNetworkError(err)) {
+        pendingHtmlRef.current = contentToSave;
+        setSaveStatus('local');
+        return;
+      }
       console.error('Failed to save notes to database:', err);
       setSaveStatus('error');
     }
@@ -71,6 +90,13 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
   const handleManualSave = async () => {
     const editor = editorInstanceRef.current;
     if (!editor || versionSaving) return;
+
+    if (!navigator.onLine) {
+      toast("You're offline. Your edits are saved on this device; save a version once you're back online.", {
+        icon: '📴',
+      });
+      return;
+    }
 
     if (!changedSinceVersionRef.current) {
       toast('No changes since your last save', { icon: '✓' });
@@ -115,8 +141,16 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
     editorHost.className = 'quill-host-editor flex-1 overflow-y-auto';
     container.appendChild(editorHost);
 
-    // 3. Initialize Yjs doc & WebSockets
+    // 3. Initialize Yjs doc, its copy on this device, and the live connection
     const ydoc = new Y.Doc();
+
+    // Every change is written to this browser's IndexedDB as it happens, so
+    // edits made offline survive a reload or a closed tab. When the connection
+    // returns, Yjs exchanges updates with the server and the CRDT merges these
+    // edits with everyone else's, no conflicts and nothing overwritten. Keyed
+    // by user too, so another account on this browser starts from the server.
+    const local = new IndexeddbPersistence(`studysync:${user?.id || 'guest'}:${spaceId}`, ydoc);
+
     const rawUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
     const cleanUrl = rawUrl.replace(/\/api\/?$/, '').replace(/^http/, 'ws');
     // The server authenticates the Yjs upgrade and checks space membership, so
@@ -130,15 +164,39 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
       { params: { get token() { return getAccessToken() || ''; } } }
     );
 
-    provider.on('status', event => {
-      setStatus(event.status); // 'connected' or 'disconnected'
+    let refusedHandshakes = 0;
+    provider.on('status', (event) => {
+      setStatus(event.status); // 'connecting' | 'connected' | 'disconnected'
+      if (event.status === 'connected') {
+        refusedHandshakes = 0;
+        setAuthError(false);
+      }
     });
 
-    // A rejected handshake (expired token, membership revoked) would otherwise
-    // just look like an ordinary reconnect loop.
-    provider.on('connection-close', (event) => {
-      if (event?.code === 4001 || event?.code === 1006) {
-        setAuthError(true);
+    // A closed connection is usually just the network (offline, server
+    // restarting): y-websocket keeps retrying on its own and the edits wait in
+    // IndexedDB. Only an online client with a valid token that keeps being
+    // refused has a real access problem.
+    provider.on('connection-close', () => {
+      if (!navigator.onLine) return;
+
+      // The handshake carries the 15-minute access token, which will have run
+      // out after a while offline. Renew it; the next retry reads the new one
+      // through the `params` getter above.
+      if (!isAccessTokenFresh()) {
+        refreshSession().catch(() => {});
+        return;
+      }
+
+      // Ask the API why, once, rather than guessing from the close code
+      refusedHandshakes += 1;
+      if (refusedHandshakes === 3) {
+        api.get(`/spaces/${spaceId}`).catch((err) => {
+          if ([403, 404].includes(err.response?.status)) {
+            setAuthError(true);
+            provider.disconnect();
+          }
+        });
       }
     });
 
@@ -170,10 +228,13 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
 
     // 6. Seed from the saved HTML only for spaces that have no shared doc yet. The server
     //    loads the stored doc before the first sync, so the doc is only empty after sync
-    //    when there is nothing to merge with. Seeding before sync duplicates the notes.
+    //    when there is nothing to merge with. Seeding before sync duplicates the notes,
+    //    so this waits for both the device copy and the server.
     let seeded = false;
-    const seedFromHtml = (isSynced) => {
-      if (!isSynced || seeded) return;
+    let localLoaded = false;
+    let serverSynced = false;
+    const seedFromHtml = () => {
+      if (seeded || !localLoaded || !serverSynced) return;
       seeded = true;
       if (ytext.length === 0 && initialNotes && initialNotes.trim() !== '<p><br></p>') {
         try {
@@ -184,7 +245,20 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
       }
     };
 
-    provider.on('synced', seedFromHtml);
+    local.whenSynced.then(() => {
+      localLoaded = true;
+      seedFromHtml();
+    });
+
+    // Fires on the first sync and again after every reconnect, once the edits
+    // made offline have been exchanged with the server
+    const handleSynced = (isSynced) => {
+      if (!isSynced) return;
+      serverSynced = true;
+      seedFromHtml();
+      if (pendingHtmlRef.current !== null) saveToDatabase(pendingHtmlRef.current);
+    };
+    provider.on('synced', handleSynced);
 
     // 7. Awareness (Live cursor tracking for other members)
     const randomColor = '#' + ['3b82f6', '10b981', 'f59e0b', 'ec4899', '8b5cf6', '06b6d4'][
@@ -247,8 +321,11 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
       editor.off('text-change', handleTextChange);
       editor.off('selection-change', handleSelectionChange);
       provider.awareness.off('change', syncPeers);
+      provider.off('synced', handleSynced);
       binding.destroy();
       provider.destroy();
+      // Closes the database; the stored notes stay for the next visit
+      local.destroy();
       ydoc.destroy();
       editorInstanceRef.current = null;
 
@@ -257,7 +334,7 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
         container.innerHTML = '';
       }
     };
-  }, [spaceId, user?.name, initialNotes, saveToDatabase]);
+  }, [spaceId, user?.id, user?.name, initialNotes, saveToDatabase]);
 
   return (
     <div className="flex flex-col h-full bg-surface rounded-xl shadow-xs border border-gray-200 overflow-hidden">
@@ -284,6 +361,14 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
             {saveStatus === 'unsaved' && (
               <span className="text-gray-500 flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded-md">
                 <Cloud size={12} /> Unsaved edits
+              </span>
+            )}
+            {saveStatus === 'local' && (
+              <span
+                className="text-amber-700 flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200"
+                title="Your edits are stored in this browser and will sync automatically when you're back online"
+              >
+                <CloudOff size={12} /> Saved on this device
               </span>
             )}
             {saveStatus === 'error' && (
@@ -352,38 +437,48 @@ export default function CollaborativeEditor({ spaceId, initialNotes = '', onHigh
             <span>{versionSaving ? 'Saving...' : 'Save Now'}</span>
           </button>
 
-          {/* Real-time Sync Connection Indicator */}
+          {/* Real-time sync: live, offline (editing continues locally), or reconnecting */}
           <span
             className={`text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1 border ${
               status === 'connected'
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                : 'bg-rose-50 text-rose-700 border-rose-200'
+                : 'bg-amber-50 text-amber-700 border-amber-200'
             }`}
-            title={status === 'connected' ? 'Connected to real-time sync server' : 'Disconnected from real-time sync server'}
+            title={
+              status === 'connected'
+                ? 'Connected: changes sync live with everyone in this space'
+                : !online
+                  ? "You're offline. Keep editing: changes are saved on this device and sync when you reconnect"
+                  : 'Reconnecting to the sync server. Your changes are saved on this device meanwhile'
+            }
           >
             {status === 'connected' ? (
               <>
                 <Wifi size={12} />
                 <span>Live Sync</span>
               </>
-            ) : (
+            ) : !online ? (
               <>
                 <WifiOff size={12} />
                 <span>Offline</span>
+              </>
+            ) : (
+              <>
+                <RefreshCw size={12} className="animate-spin" />
+                <span>Syncing…</span>
               </>
             )}
           </span>
         </div>
       </div>
 
-      {/* A rejected handshake means the session or membership is no longer valid,
-          which a plain "Offline" pill would misrepresent as a network blip. */}
+      {/* Only a confirmed refusal (the API says no access) lands here; going
+          offline or an expired token never does */}
       {authError && (
         <div className="px-4 py-2 bg-rose-50 border-b border-rose-200 flex items-start gap-2 shrink-0">
           <ShieldAlert size={15} className="text-rose-600 mt-0.5 shrink-0" />
           <p className="text-xs text-rose-700 leading-relaxed">
-            Live sync was refused. Your session may have expired, or you no longer have access to this space.
-            Your local edits are safe — reload the page to reconnect.
+            Live sync was refused: you no longer have access to this space. Your edits are kept on this device.
           </p>
         </div>
       )}

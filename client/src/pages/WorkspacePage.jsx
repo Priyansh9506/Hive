@@ -22,6 +22,7 @@ import { SpaceGlyph, spaceColor } from '../lib/spaceIcons';
 import { useSocket, useSocketStatus } from '../context/SocketContext';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
+import { getCached, setCached, isNetworkError } from '../lib/offlineCache';
 import { gsap, useGSAP, prefersReducedMotion, CLEAR } from '../lib/motion';
 
 // Layout by width:
@@ -119,9 +120,21 @@ export default function WorkspacePage() {
       try {
         const res = await api.get(`/spaces/${id}`);
         setSpace(res.data.space);
+        setCached(`space:${id}`, res.data.space);
       } catch (err) {
-        console.error('Failed to load space', err);
-        setLoadError(err.response?.data?.message || 'Space not found or unauthorized.');
+        // Offline: open the copy from the last visit, so the notes (kept on
+        // this device) can still be read and edited
+        const cached = isNetworkError(err) ? getCached(`space:${id}`) : null;
+        if (cached) {
+          setSpace(cached);
+        } else {
+          console.error('Failed to load space', err);
+          setLoadError(
+            isNetworkError(err)
+              ? "You're offline, and this space hasn't been opened on this device yet."
+              : err.response?.data?.message || 'Space not found or unauthorized.'
+          );
+        }
       } finally {
         setLoading(false);
       }
