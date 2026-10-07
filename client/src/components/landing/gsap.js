@@ -9,6 +9,10 @@ import { gsap, useGSAP } from '../../lib/motion';
 // registered here rather than in lib/motion (which every app screen imports).
 gsap.registerPlugin(ScrollTrigger, ScrollToPlugin, SplitText, TextPlugin, ScrambleTextPlugin);
 
+// Phones resize the viewport whenever the address bar slides in or out while
+// scrolling; re-measuring then would make pinned sections jump
+ScrollTrigger.config({ ignoreMobileResize: true });
+
 // Every landing animation is written inside this media query, so visitors who
 // ask for reduced motion get the finished layout with nothing moving.
 export const MOTION_OK = '(prefers-reduced-motion: no-preference)';

@@ -3,7 +3,8 @@ import { gsap, useGSAP, MOTION_OK } from './gsap';
 import { LogoMark } from './primitives';
 
 // The tools a study group juggles today (from the Hive problem statement).
-// Brand marks come from Simple Icons; `x`/`y` place each tile around the centre.
+// Brand marks come from Simple Icons; `x`/`y` place each tile around the centre
+// as a share of the stage, so the layout scales from phones to desktops.
 const TOOLS = [
   { name: 'WhatsApp', slug: 'whatsapp', x: 10, y: 22 },
   { name: 'Google Docs', slug: 'googledocs', x: 30, y: 78 },
@@ -17,8 +18,9 @@ const iconUrl = (slug) => `https://cdn.simpleicons.org/${slug}`;
 
 /**
  * "Six apps become one link": while the section is pinned, scrolling pulls the
- * scattered tool logos into the Hive mark. The motion is the argument.
- * Below md the section is a static grid with no pinning.
+ * scattered tool logos into the Hive mark. The motion is the argument, so it
+ * runs at every screen size; the stage, tiles and hub just scale down on
+ * tablets and phones. With reduced motion the finished state is shown.
  */
 export default function Consolidate() {
   const ref = useRef(null);
@@ -28,11 +30,11 @@ export default function Consolidate() {
       const q = gsap.utils.selector(ref);
       const mm = gsap.matchMedia();
 
-      mm.add(`(min-width: 768px) and ${MOTION_OK}`, () => {
+      mm.add(MOTION_OK, () => {
         const hub = q('[data-hub]')[0];
 
         // Distance from each tile's centre to the hub's centre, measured on
-        // every refresh so resizing keeps the tiles converging on target
+        // every refresh so resizing or rotating keeps the tiles on target
         const toHub = (axis) => (i, tile) => {
           const t = tile.getBoundingClientRect();
           const h = hub.getBoundingClientRect();
@@ -48,6 +50,7 @@ export default function Consolidate() {
             start: 'top top',
             end: '+=110%',
             pin: true,
+            anticipatePin: 1,
             scrub: 0.8,
             invalidateOnRefresh: true,
           },
@@ -78,12 +81,18 @@ export default function Consolidate() {
           scrollTrigger: { trigger: ref.current, start: 'top 65%', once: true },
         });
       });
+
+      // Reduced motion: no pinning or movement, but still land on the point
+      mm.add('(prefers-reduced-motion: reduce)', () => {
+        gsap.set(q('[data-before]'), { autoAlpha: 0 });
+        gsap.set(q('[data-after]'), { autoAlpha: 1 });
+      });
     },
     { scope: ref }
   );
 
   return (
-    <section ref={ref} className="relative flex flex-col justify-center py-20 md:min-h-[100dvh] md:py-24">
+    <section ref={ref} className="relative flex min-h-[100svh] flex-col justify-center py-16 md:py-24 [@media(max-height:520px)]:py-6">
       <div className="mx-auto w-full max-w-[1240px] px-4 sm:px-6">
         <div className="relative mx-auto grid max-w-3xl text-center">
           <h2
@@ -92,7 +101,7 @@ export default function Consolidate() {
           >
             Six apps for one study session.
           </h2>
-          {/* Only ever shown by the scroll animation */}
+          {/* Only ever shown by the scroll animation (or with reduced motion) */}
           <h2
             data-after
             aria-hidden="true"
@@ -102,16 +111,23 @@ export default function Consolidate() {
           </h2>
         </div>
 
-        {/* Desktop stage: tiles scattered around the hub */}
-        <div data-stage className="relative mx-auto mt-12 hidden h-[400px] max-w-4xl md:block">
+        {/* Stage: tiles scattered around the hub, sized for the screen */}
+        <div data-stage className="relative mx-auto mt-10 h-[300px] max-w-4xl sm:mt-12 sm:h-[360px] md:h-[400px] [@media(max-height:520px)]:mt-6 [@media(max-height:520px)]:h-[200px]">
           {TOOLS.map((tool) => (
             <div
               key={tool.slug}
               data-tool
               style={{ left: `${tool.x}%`, top: `${tool.y}%` }}
-              className="ls-lift absolute grid size-[76px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-2xl border border-line bg-surface"
+              className="ls-lift absolute grid size-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-xl border border-line bg-surface sm:size-16 sm:rounded-2xl md:size-[76px]"
             >
-              <img src={iconUrl(tool.slug)} alt={tool.name} width="34" height="34" loading="lazy" className="size-[34px]" />
+              <img
+                src={iconUrl(tool.slug)}
+                alt={tool.name}
+                width="34"
+                height="34"
+                loading="lazy"
+                className="size-[26px] sm:size-[30px] md:size-[34px]"
+              />
             </div>
           ))}
 
@@ -119,32 +135,15 @@ export default function Consolidate() {
             <div
               data-hub-glow
               aria-hidden="true"
-              className="absolute -inset-16 rounded-full bg-[radial-gradient(circle,color-mix(in_srgb,var(--ls-flame)_22%,transparent),transparent_65%)]"
+              className="absolute -inset-10 rounded-full bg-[radial-gradient(circle,color-mix(in_srgb,var(--ls-flame)_22%,transparent),transparent_65%)] md:-inset-16"
             />
             <div
               data-hub
-              className="ls-lift relative grid size-28 place-items-center rounded-[28px] border border-line bg-surface"
+              className="ls-lift relative grid size-20 place-items-center rounded-[22px] border border-line bg-surface sm:size-24 sm:rounded-[26px] md:size-28 md:rounded-[28px]"
             >
-              <LogoMark className="size-14" />
+              <LogoMark className="size-10 sm:size-12 md:size-14" />
             </div>
           </div>
-        </div>
-
-        {/* Mobile: the same story, told statically */}
-        <div className="mt-10 md:hidden">
-          <div className="grid grid-cols-3 gap-3">
-            {TOOLS.map((tool) => (
-              <div
-                key={tool.slug}
-                className="grid aspect-square place-items-center rounded-2xl border border-line bg-surface"
-              >
-                <img src={iconUrl(tool.slug)} alt={tool.name} width="30" height="30" loading="lazy" className="size-[30px]" />
-              </div>
-            ))}
-          </div>
-          <p className="mt-8 text-center font-display text-4xl leading-tight">
-            Now it&apos;s <span className="italic text-flame">one link.</span>
-          </p>
         </div>
 
         <p className="mx-auto mt-10 max-w-[52ch] text-center text-[17px] leading-relaxed text-ink-soft">

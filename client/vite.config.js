@@ -14,8 +14,11 @@ export default defineConfig({
     // read-only views in lib/offlineCache.js. API and WebSocket traffic always
     // goes to the network.
     VitePWA({
+      // New versions install and activate on their own; lib/pwaUpdates.js
+      // registers the worker, checks for updates while the app is open and
+      // reloads into a new version when that interrupts nobody
       registerType: 'autoUpdate',
-      injectRegister: 'auto',
+      injectRegister: false,
       includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'Hive',
