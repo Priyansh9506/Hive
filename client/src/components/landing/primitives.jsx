@@ -3,19 +3,20 @@ import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { gsap, useGSAP, SplitText, MOTION_OK, EASE_OUT } from './gsap';
 
-// Kolo mark: a rounded hexagon with a cut-out taken from the inner hexagon,
-// minus its lower-left third, so it reads as a cube or a speech bubble in a
-// cell. One even-odd path; the same geometry produces public/favicon.svg and
-// the PWA icons.
-const KOLO_MARK =
+// Hive mark: one honeycomb cell, partly filled. A rounded hexagon with a
+// cut-out taken from the inner hexagon minus its lower-left third: the solid
+// part is what the group already knows, the open part what it is working on.
+// One even-odd path; the same geometry produces public/favicon.svg and the
+// PWA icons.
+const HIVE_MARK =
   'M5.5 29.4L16.5 10.35Q18 7.75 21 7.75L43 7.75Q46 7.75 47.5 10.35L58.5 29.4Q60 32 58.5 34.6L47.5 53.65Q46 56.25 43 56.25L21 56.25Q18 56.25 16.5 53.65L5.5 34.6Q4 32 5.5 29.4Z' +
   'M13.3 28.88L20.8 15.89Q21.75 14.25 23.65 14.25L40.35 14.25Q42.25 14.25 43.2 15.89L51.55 30.35Q52.5 32 51.55 33.65L44.05 46.64Q42.25 49.75 40.45 46.64L32.8 33.39Q32 32 30.4 32L15.1 32Q11.5 32 13.3 28.88Z';
 
-/** The Kolo mark. Takes the theme's ink colour unless `color` says otherwise. */
+/** The Hive mark. Takes the theme's ink colour unless `color` says otherwise. */
 export function LogoMark({ className = 'size-7', color = 'var(--ls-ink)' }) {
   return (
     <svg viewBox="0 0 64 64" className={className} aria-hidden="true">
-      <path fillRule="evenodd" d={KOLO_MARK} fill={color} />
+      <path fillRule="evenodd" d={HIVE_MARK} fill={color} />
     </svg>
   );
 }
@@ -24,7 +25,7 @@ export function Wordmark() {
   return (
     <span className="flex items-center gap-2">
       <LogoMark />
-      <span className="text-[18px] font-semibold tracking-tight">Kolo</span>
+      <span className="text-[18px] font-semibold tracking-tight">Hive</span>
     </span>
   );
 }

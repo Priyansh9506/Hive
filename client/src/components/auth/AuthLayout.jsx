@@ -46,7 +46,7 @@ export default function AuthLayout({ title, subtitle, aside, footer, children })
     <div ref={ref} className="landing grid min-h-[100dvh] grid-cols-1 lg:grid-cols-2">
       <div className="flex flex-col px-4 py-5 sm:px-8 lg:px-12">
         <header className="flex items-center justify-between">
-          <Link to="/" aria-label="Kolo home">
+          <Link to="/" aria-label="Hive home">
             <Wordmark />
           </Link>
           <Link

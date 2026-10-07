@@ -13,7 +13,7 @@ export default function NotFoundPage() {
     <AppShell className="min-h-[100dvh] flex flex-col items-center justify-center px-6 text-center">
       <Link to="/" className="flex items-center gap-2 mb-10">
         <LogoMark className="size-8" />
-        <span className="text-xl font-semibold tracking-tight text-ink">Kolo</span>
+        <span className="text-xl font-semibold tracking-tight text-ink">Hive</span>
       </Link>
       <p className="font-geist-mono text-sm text-flame">404</p>
       <h1 className="mt-2 font-display text-4xl sm:text-5xl tracking-tight text-ink">This page wandered off</h1>

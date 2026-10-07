@@ -50,7 +50,7 @@ export default function SignupPage() {
     setLoading(true);
     try {
       await register(name.trim(), email.trim(), password);
-      toast.success('Account created. Welcome to Kolo!');
+      toast.success('Account created. Welcome to Hive!');
       navigate(redirectTo, { replace: true });
     } catch (error) {
       setFormError(error.response?.data?.message || 'Registration failed. Please try again.');

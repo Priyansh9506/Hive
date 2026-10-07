@@ -49,7 +49,7 @@ const sendMail = async ({ to, subject, html, text }) => {
 
   try {
     const info = await tx.sendMail({
-      from: process.env.SMTP_FROM || `Kolo <${process.env.SMTP_USER}>`,
+      from: process.env.SMTP_FROM || `Hive <${process.env.SMTP_USER}>`,
       to,
       subject,
       text,

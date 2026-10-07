@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { gsap, useGSAP, MOTION_OK } from './gsap';
 import { LogoMark } from './primitives';
 
-// The tools a study group juggles today (from the Kolo problem statement).
+// The tools a study group juggles today (from the Hive problem statement).
 // Brand marks come from Simple Icons; `x`/`y` place each tile around the centre.
 const TOOLS = [
   { name: 'WhatsApp', slug: 'whatsapp', x: 10, y: 22 },
@@ -17,7 +17,7 @@ const iconUrl = (slug) => `https://cdn.simpleicons.org/${slug}`;
 
 /**
  * "Six apps become one link": while the section is pinned, scrolling pulls the
- * scattered tool logos into the Kolo mark. The motion is the argument.
+ * scattered tool logos into the Hive mark. The motion is the argument.
  * Below md the section is a static grid with no pinning.
  */
 export default function Consolidate() {
@@ -148,7 +148,7 @@ export default function Consolidate() {
         </div>
 
         <p className="mx-auto mt-10 max-w-[52ch] text-center text-[17px] leading-relaxed text-ink-soft">
-          Chat, notes, files and an AI helper used to live in separate tabs. In Kolo they share one space, so
+          Chat, notes, files and an AI helper used to live in separate tabs. In Hive they share one space, so
           nothing gets lost between them.
         </p>
       </div>

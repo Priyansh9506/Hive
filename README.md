@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="client/public/favicon.svg" width="96" alt="Kolo logo"/>
+  <img src="client/public/favicon.svg" width="96" alt="Hive logo"/>
 </p>
 
-<h1 align="center">Kolo</h1>
+<h1 align="center">Hive</h1>
 
 <p align="center">
   <b>Real-Time Collaborative Study Workspace</b><br/>
@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://study-sync-up.vercel.app"><b>🌐 Live App — study-sync-up.vercel.app</b></a>
+  <a href="https://tryhive.vercel.app"><b>🌐 Live App — tryhive.vercel.app</b></a>
 </p>
 
 <p align="center">
@@ -34,6 +34,7 @@
 - [Overview](#overview)
 - [Problem Statement](#problem-statement)
 - [Product Vision](#product-vision)
+- [Why the Name "Hive"?](#why-the-name-hive)
 - [Features](#features)
 - [Architecture](#architecture)
   - [High-Level Architecture](#high-level-architecture)
@@ -72,15 +73,15 @@
 
 ## Overview
 
-**Kolo** (formerly StudySync) is a real-time collaborative study workspace where students create shared spaces, invite peers, jointly edit notes, discuss problems, share solutions and resources, preserve important knowledge through pins/highlights, ask an AI tutor that has read their notes, and recover seamlessly from connection failures.
+**Hive** (formerly StudySync) is a real-time collaborative study workspace where students create shared spaces, invite peers, jointly edit notes, discuss problems, share solutions and resources, preserve important knowledge through pins/highlights, ask an AI tutor that has read their notes, and recover seamlessly from connection failures.
 
 > **Product Thesis:** _Don't build another generic notes app. Build a shared digital study room._
 
-Kolo is deliberately positioned as a **study-specific collaboration environment**, not a general productivity tool. The core experience is a shared "Study Space" containing collaborative notes, conversations, resources, pinned/highlighted information, and group members — all updating live for everyone in it.
+Hive is deliberately positioned as a **study-specific collaboration environment**, not a general productivity tool. The core experience is a shared "Study Space" containing collaborative notes, conversations, resources, pinned/highlighted information, and group members — all updating live for everyone in it.
 
 | | |
 |---|---|
-| 🌐 **Frontend** | Hosted on **Vercel** — [study-sync-up.vercel.app](https://study-sync-up.vercel.app) |
+| 🌐 **Frontend** | Hosted on **Vercel** — [tryhive.vercel.app](https://tryhive.vercel.app) |
 | ⚙️ **Backend** | Hosted on **Render** (Node.js + Express + Socket.IO + Yjs WebSocket) |
 | 🗄️ **Database** | **MongoDB Atlas** |
 | ⚡ **Real-time layer** | **Upstash Redis** — Socket.IO Redis adapter (pub/sub + room/presence registry) |
@@ -108,7 +109,7 @@ Students currently split group study across **multiple disconnected tools**:
 4. No study-focused context linking conversations, notes, and resources
 5. Students need a lightweight workspace for a single exam/topic/project
 
-**Kolo brings the core study workflow into one collaborative space.**
+**Hive brings the core study workflow into one collaborative space.**
 
 ---
 
@@ -119,11 +120,11 @@ Create a study space → Invite classmates → Collaborate live
 → Capture important knowledge → Revisit later
 ```
 
-### What Kolo IS
+### What Hive IS
 
 A focused **real-time academic collaboration workspace** for students and small study/project groups.
 
-### What Kolo is NOT
+### What Hive is NOT
 
 - ❌ Notion replacement
 - ❌ Full LMS
@@ -131,6 +132,26 @@ A focused **real-time academic collaboration workspace** for students and small 
 - ❌ Social network
 - ❌ Google Drive clone
 - ❌ Generic AI chatbot
+
+---
+
+## Why the Name "Hive"?
+
+> _Bees don't work alone. A hive is a group building one thing together, cell by cell, and storing what it makes for later — exactly what a study group needs._
+
+| The hive | Hive, the app |
+|----------|---------------|
+| 🏠 Everything the colony needs lives in **one structure** | Notes, chat, files and an AI tutor in **one space** instead of six apps |
+| ⬡ Bees build **hexagonal cells** — the most efficient shape, no gaps, no waste (Hales' honeycomb theorem, 1999) | Our **logo is one honeycomb cell**; every study space is a cell, the whole app is the hive |
+| 🍯 The cell in the logo is **partly filled** | The filled part is what the group already knows; the open part is what it is working on now |
+| 🐝 Thousands of bees **build at once** without getting in each other's way | **Real-time co-editing** — Yjs (CRDT) merges everyone's edits, even after going offline |
+| 💃 A bee that finds food does a **waggle dance** to show the others where it is | Whoever finds the answer **pins or highlights** it, so the whole group — even late joiners — goes straight to it |
+| 🍯 Bees **store honey** for winter | Groups **store answers** for exam season: pins, version history, AI revision notes |
+| 🌍 Any group that builds together is a hive | Classes, project teams, hackathon squads and clubs — not only study groups |
+
+**Tagline:** _Where groups think together._
+
+> **Note:** "Hive" is also the name of other products (e.g. the project-management tool at hive.com). For this course project the name stands; for a public launch the product would use a fuller name such as **Hive Rooms**.
 
 ---
 
@@ -207,7 +228,7 @@ graph TB
 ### Directory Structure
 
 ```
-Kolo/
+Hive/
 ├── 📄 StudySync_PRD.md              # Product Requirements Document
 ├── 📄 MEMORY.md                     # Implementation tracking
 ├── 📄 README.md                     # Project documentation
@@ -869,7 +890,7 @@ Client B types "World" → Server → Client A
 ❌ Result: One edit overwrites the other
 ```
 
-Kolo uses **Yjs** (a CRDT library) so that document changes are represented as collaborative operations and all replicas converge automatically.
+Hive uses **Yjs** (a CRDT library) so that document changes are represented as collaborative operations and all replicas converge automatically.
 
 ### Collaboration Architecture
 
@@ -991,7 +1012,7 @@ A socket joins the `watch:` room of **every** space its user belongs to on conne
 flowchart TD
     subgraph Owner_Actions["👑 Owner Actions"]
         G["Invite Settings"]
-        G --> IL["📎 Invite Link<br/><code>study-sync-up.vercel.app/join/W6A-BEC</code>"]
+        G --> IL["📎 Invite Link<br/><code>tryhive.vercel.app/join/W6A-BEC</code>"]
         G --> IC["🔢 Join Code<br/><code>W6A-BEC</code>"]
         G --> EM["📧 Email Invite<br/>(NodeMailer + in-app)"]
     end
@@ -1085,7 +1106,7 @@ Touch screens always show the actions that appear on hover with a mouse (message
 journey
     title Create Study Space & Collaborate
     section Authentication
-      Open Kolo: 5: Student
+      Open Hive: 5: Student
       Sign up / Login / Google: 5: Student
       Arrive at Dashboard: 5: Student
     section Create Space
@@ -1145,7 +1166,7 @@ flowchart TD
 
 ## Redis & Horizontal Scaling
 
-Kolo runs **Redis (Upstash)** in production, even with a single Render server. The **Socket.IO Redis Adapter** is switched on whenever `REDIS_URL` is set, so every room broadcast and every presence lookup goes through Redis.
+Hive runs **Redis (Upstash)** in production, even with a single Render server. The **Socket.IO Redis Adapter** is switched on whenever `REDIS_URL` is set, so every room broadcast and every presence lookup goes through Redis.
 
 ### Current Setup — Single Server + Redis (Render + Upstash)
 
@@ -1303,12 +1324,12 @@ node scripts/seed.js
 
 ## Deployment
 
-Kolo is live with the **frontend on Vercel** and the **backend on Render**.
+Hive is live with the **frontend on Vercel** and the **backend on Render**.
 
 ```mermaid
 graph TB
     subgraph Frontend["Frontend — Vercel"]
-        V["study-sync-up.vercel.app<br/>(client/ — static React SPA)"]
+        V["tryhive.vercel.app<br/>(client/ — static React SPA)"]
     end
 
     subgraph Backend["Backend — Render"]
@@ -1333,7 +1354,7 @@ graph TB
 | Component | Platform | Configuration |
 |-----------|----------|---------------|
 | **Frontend** | **Vercel** | Root directory `client/`. `vercel.json` rewrites every path to `index.html`, so refreshing any page and `/join/…` links work. Env: `VITE_API_URL` (Render URL + `/api`), `VITE_GOOGLE_CLIENT_ID`. |
-| **Backend** | **Render** | Root directory `server/`, start `npm start`. Env: `NODE_ENV=production`, `CLIENT_URL=https://study-sync-up.vercel.app` (exactly — used for CORS and invite links), `SERVER_URL` (for the self-ping), plus the variables above. |
+| **Backend** | **Render** | Root directory `server/`, start `npm start`. Env: `NODE_ENV=production`, `CLIENT_URL=https://tryhive.vercel.app` (exactly — used for CORS and invite links), `SERVER_URL` (for the self-ping), plus the variables above. |
 | **Database** | **MongoDB Atlas** | Allow Render's outbound IPs in Network Access. |
 | **Redis** | **Upstash** | `REDIS_URL` (`rediss://…`) on Render — powers the Socket.IO Redis adapter. |
 | **AI** | Google Gemini | `GEMINI_API_KEY` on Render. |
