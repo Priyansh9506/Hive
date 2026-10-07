@@ -16,7 +16,7 @@ const Shell = ({ children }) => (
     <div className="w-full max-w-md">
       <Link to="/" className="flex items-center justify-center gap-2 mb-6">
         <LogoMark className="size-8" />
-        <span className="text-xl font-semibold tracking-tight text-ink">Hive</span>
+        <span className="text-xl font-semibold tracking-tight text-ink">StudySync</span>
       </Link>
       <Card className="rounded-2xl border-line bg-surface shadow-none ls-lift">
         <CardContent className="p-6">{children}</CardContent>

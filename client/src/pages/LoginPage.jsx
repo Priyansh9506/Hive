@@ -63,7 +63,7 @@ export default function LoginPage() {
       aside="Pick up right where your group left off."
       footer={
         <>
-          New to Hive?{' '}
+          New to StudySync?{' '}
           <Link to="/signup" state={location.state} className="font-medium text-ink underline-offset-4 hover:text-flame hover:underline">
             Create an account
           </Link>

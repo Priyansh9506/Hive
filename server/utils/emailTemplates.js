@@ -18,18 +18,18 @@ const inviteEmail = ({ spaceName, inviterName, joinCode, joinUrl, message }) => 
   const url = escapeHtml(joinUrl);
   const note = message ? escapeHtml(message) : '';
 
-  const subject = `${inviterName} invited you to join "${spaceName}" on Hive`;
+  const subject = `${inviterName} invited you to join "${spaceName}" on StudySync`;
 
   const text = [
     `You have been invited to join: ${spaceName}`,
     '',
-    `${inviterName} invited you to collaborate on Hive.`,
+    `${inviterName} invited you to collaborate on StudySync.`,
     note ? `\nTheir message: "${message}"\n` : '',
     `Join the study space: ${joinUrl}`,
     '',
     `Invite Code: ${joinCode}`,
     '',
-    'Hive — shared notes, discussion and resources for study groups.',
+    'StudySync — shared notes, discussion and resources for study groups.',
   ].join('\n');
 
   const html = `
@@ -37,7 +37,7 @@ const inviteEmail = ({ spaceName, inviterName, joinCode, joinUrl, message }) => 
   <div style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
 
     <div style="padding:20px 28px;background:#4f46e5;">
-      <span style="color:#ffffff;font-size:18px;font-weight:700;letter-spacing:-0.01em;">Hive</span>
+      <span style="color:#ffffff;font-size:18px;font-weight:700;letter-spacing:-0.01em;">StudySync</span>
     </div>
 
     <div style="padding:28px;">
@@ -59,7 +59,7 @@ const inviteEmail = ({ spaceName, inviterName, joinCode, joinUrl, message }) => 
       </a>
 
       <div style="margin:28px 0 0;padding-top:20px;border-top:1px solid #e5e7eb;">
-        <p style="margin:0 0 8px;font-size:13px;color:#6b7280;">Or enter this invite code in Hive:</p>
+        <p style="margin:0 0 8px;font-size:13px;color:#6b7280;">Or enter this invite code in StudySync:</p>
         <p style="margin:0;font-size:22px;font-weight:700;letter-spacing:0.12em;color:#111827;font-family:'SFMono-Regular',Consolas,'Liberation Mono',monospace;">${code}</p>
       </div>
     </div>

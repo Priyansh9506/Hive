@@ -100,7 +100,7 @@ export default function LivePreview() {
   return (
     <div
       ref={ref}
-      aria-label="Preview of a Hive study space: classmates editing notes together, chatting, and using the AI assistant"
+      aria-label="Preview of a StudySync study space: classmates editing notes together, chatting, and using the AI assistant"
       role="img"
       className="ls-lift relative overflow-hidden rounded-2xl border border-line bg-surface text-left"
     >

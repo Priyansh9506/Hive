@@ -26,7 +26,7 @@ export function Wordmark() {
   return (
     <span className="flex items-center gap-2">
       <LogoMark />
-      <span className="text-[18px] font-semibold tracking-tight">Hive</span>
+      <span className="text-[18px] font-semibold tracking-tight">StudySync</span>
     </span>
   );
 }

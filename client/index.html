@@ -2,30 +2,6 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <script>
-      // The app moved to tryhive.vercel.app. Browsers that installed it on the
-      // old address keep serving it from their service worker, which never sees
-      // a server redirect, so on the old address the page clears that worker and
-      // its cache, then sends the visitor on to the same path on the new one.
-      (function () {
-        if (location.hostname !== 'study-sync-up.vercel.app') return;
-        var go = function () {
-          location.replace('https://tryhive.vercel.app' + location.pathname + location.search + location.hash);
-        };
-        var cleanup = [];
-        if ('serviceWorker' in navigator) {
-          cleanup.push(navigator.serviceWorker.getRegistrations().then(function (regs) {
-            return Promise.all(regs.map(function (r) { return r.unregister(); }));
-          }));
-        }
-        if (window.caches) {
-          cleanup.push(caches.keys().then(function (keys) {
-            return Promise.all(keys.map(function (k) { return caches.delete(k); }));
-          }));
-        }
-        Promise.all(cleanup).then(go, go);
-      })();
-    </script>
     <!-- sizes="32x32" (not "any") so browsers that support SVG pick favicon.svg -->
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -36,8 +12,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
-    <meta name="description" content="Hive is a shared study room: live notes, a chat that keeps the answers, and an AI tutor that reads your notes." />
-    <title>Hive · Study together, in one room</title>
+    <meta name="description" content="StudySync is a shared study room: live notes, a chat that keeps the answers, and an AI tutor that reads your notes." />
+    <title>StudySync · Study together, in one room</title>
   </head>
   <body>
     <div id="root"></div>

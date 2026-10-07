@@ -147,7 +147,7 @@ export default function Consolidate() {
         </div>
 
         <p className="mx-auto mt-10 max-w-[52ch] text-center text-[17px] leading-relaxed text-ink-soft">
-          Chat, notes, files and an AI helper used to live in separate tabs. In Hive they share one space, so
+          Chat, notes, files and an AI helper used to live in separate tabs. In StudySync they share one space, so
           nothing gets lost between them.
         </p>
       </div>

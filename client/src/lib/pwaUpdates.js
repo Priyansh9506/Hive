@@ -84,7 +84,7 @@ export function startPwaUpdates() {
   try {
     if (sessionStorage.getItem(UPDATED_FLAG)) {
       sessionStorage.removeItem(UPDATED_FLAG);
-      toast.success('Hive was updated to the latest version', { id: 'pwa-updated' });
+      toast.success('StudySync was updated to the latest version', { id: 'pwa-updated' });
     }
   } catch {
     // storage unavailable: skip the notice

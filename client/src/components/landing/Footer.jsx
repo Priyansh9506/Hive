@@ -61,7 +61,7 @@ export default function Footer({ cta }) {
         </nav>
       </div>
       <div className="mx-auto max-w-[1240px] border-t border-line px-4 py-6 text-xs text-ink-faint sm:px-6">
-        &copy; {new Date().getFullYear()} Hive
+        &copy; {new Date().getFullYear()} StudySync
       </div>
     </footer>
   );
