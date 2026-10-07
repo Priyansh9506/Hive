@@ -47,7 +47,7 @@ export default function Topbar({ className = '' }) {
           <div className="flex items-center shrink-0">
             <Link to="/dashboard" className="flex items-center gap-2">
               <LogoMark className="size-7" />
-              <span className="hidden sm:inline text-[17px] font-semibold tracking-tight text-ink">StudySync</span>
+              <span className="hidden sm:inline text-[18px] font-semibold tracking-tight text-ink">Kolo</span>
             </Link>
           </div>
 

@@ -9,7 +9,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     // Installable app with a service worker that keeps the app itself (HTML,
-    // JS, CSS, icons, fonts) on the device, so StudySync opens offline. Data is
+    // JS, CSS, icons, fonts) on the device, so Kolo opens offline. Data is
     // not cached here: the notes live in IndexedDB through Yjs, and the few
     // read-only views in lib/offlineCache.js. API and WebSocket traffic always
     // goes to the network.
@@ -18,8 +18,8 @@ export default defineConfig({
       injectRegister: 'auto',
       includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'StudySync',
-        short_name: 'StudySync',
+        name: 'Kolo',
+        short_name: 'Kolo',
         description: 'A shared study room: live notes, a chat that keeps the answers, and an AI tutor that reads your notes.',
         start_url: '/dashboard',
         scope: '/',

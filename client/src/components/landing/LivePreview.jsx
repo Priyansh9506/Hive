@@ -23,7 +23,7 @@ const TABS = [
 ];
 
 /**
- * A working miniature of a StudySync space, replaying one short session: two
+ * A working miniature of a Kolo space, replaying one short session: two
  * classmates type into the same notes, a question gets answered and pinned in
  * chat, a line is highlighted, and the AI turns the notes into a quiz. It shows
  * the product doing its job instead of describing it.
@@ -100,7 +100,7 @@ export default function LivePreview() {
   return (
     <div
       ref={ref}
-      aria-label="Preview of a StudySync study space: classmates editing notes together, chatting, and using the AI assistant"
+      aria-label="Preview of a Kolo study space: classmates editing notes together, chatting, and using the AI assistant"
       role="img"
       className="ls-lift relative overflow-hidden rounded-2xl border border-line bg-surface text-left"
     >

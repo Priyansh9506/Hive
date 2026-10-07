@@ -37,7 +37,7 @@ export default function Nav({ cta }) {
         data-stuck="false"
         className="mx-auto flex h-16 max-w-[1240px] items-center justify-between gap-6 px-4 transition-[background-color,border-color,backdrop-filter] duration-300 sm:px-6 lg:mt-3 lg:h-14 lg:rounded-full lg:border lg:border-transparent lg:pl-5 lg:pr-2 data-[stuck=true]:border-b data-[stuck=true]:border-line data-[stuck=true]:bg-paper/90 data-[stuck=true]:backdrop-blur-xl lg:data-[stuck=true]:border lg:data-[stuck=true]:bg-surface/90"
       >
-        <Link to="/" aria-label="StudySync home" className="shrink-0">
+        <Link to="/" aria-label="Kolo home" className="shrink-0">
           <Wordmark />
         </Link>
 

@@ -76,7 +76,7 @@ app.use('/api/search', searchRoutes);
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     success: true,
-    message: 'StudySync API is running',
+    message: 'Kolo API is running',
     timestamp: new Date().toISOString(),
   });
 });

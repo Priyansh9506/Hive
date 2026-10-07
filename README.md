@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/StudySync-v1.0-c9420e?style=for-the-badge&logo=bookstack&logoColor=white" alt="StudySync Badge"/>
+  <img src="client/public/favicon.svg" width="96" alt="Kolo logo"/>
 </p>
 
-<h1 align="center">📚 StudySync</h1>
+<h1 align="center">Kolo</h1>
 
 <p align="center">
   <b>Real-Time Collaborative Study Workspace</b><br/>
@@ -72,11 +72,11 @@
 
 ## Overview
 
-**StudySync** is a real-time collaborative study workspace where students create shared spaces, invite peers, jointly edit notes, discuss problems, share solutions and resources, preserve important knowledge through pins/highlights, ask an AI tutor that has read their notes, and recover seamlessly from connection failures.
+**Kolo** (formerly StudySync) is a real-time collaborative study workspace where students create shared spaces, invite peers, jointly edit notes, discuss problems, share solutions and resources, preserve important knowledge through pins/highlights, ask an AI tutor that has read their notes, and recover seamlessly from connection failures.
 
 > **Product Thesis:** _Don't build another generic notes app. Build a shared digital study room._
 
-StudySync is deliberately positioned as a **study-specific collaboration environment**, not a general productivity tool. The core experience is a shared "Study Space" containing collaborative notes, conversations, resources, pinned/highlighted information, and group members — all updating live for everyone in it.
+Kolo is deliberately positioned as a **study-specific collaboration environment**, not a general productivity tool. The core experience is a shared "Study Space" containing collaborative notes, conversations, resources, pinned/highlighted information, and group members — all updating live for everyone in it.
 
 | | |
 |---|---|
@@ -108,7 +108,7 @@ Students currently split group study across **multiple disconnected tools**:
 4. No study-focused context linking conversations, notes, and resources
 5. Students need a lightweight workspace for a single exam/topic/project
 
-**StudySync brings the core study workflow into one collaborative space.**
+**Kolo brings the core study workflow into one collaborative space.**
 
 ---
 
@@ -119,11 +119,11 @@ Create a study space → Invite classmates → Collaborate live
 → Capture important knowledge → Revisit later
 ```
 
-### What StudySync IS
+### What Kolo IS
 
 A focused **real-time academic collaboration workspace** for students and small study/project groups.
 
-### What StudySync is NOT
+### What Kolo is NOT
 
 - ❌ Notion replacement
 - ❌ Full LMS
@@ -207,7 +207,7 @@ graph TB
 ### Directory Structure
 
 ```
-StudySync/
+Kolo/
 ├── 📄 StudySync_PRD.md              # Product Requirements Document
 ├── 📄 MEMORY.md                     # Implementation tracking
 ├── 📄 README.md                     # Project documentation
@@ -869,7 +869,7 @@ Client B types "World" → Server → Client A
 ❌ Result: One edit overwrites the other
 ```
 
-StudySync uses **Yjs** (a CRDT library) so that document changes are represented as collaborative operations and all replicas converge automatically.
+Kolo uses **Yjs** (a CRDT library) so that document changes are represented as collaborative operations and all replicas converge automatically.
 
 ### Collaboration Architecture
 
@@ -1085,7 +1085,7 @@ Touch screens always show the actions that appear on hover with a mouse (message
 journey
     title Create Study Space & Collaborate
     section Authentication
-      Open StudySync: 5: Student
+      Open Kolo: 5: Student
       Sign up / Login / Google: 5: Student
       Arrive at Dashboard: 5: Student
     section Create Space
@@ -1145,7 +1145,7 @@ flowchart TD
 
 ## Redis & Horizontal Scaling
 
-StudySync runs **Redis (Upstash)** in production, even with a single Render server. The **Socket.IO Redis Adapter** is switched on whenever `REDIS_URL` is set, so every room broadcast and every presence lookup goes through Redis.
+Kolo runs **Redis (Upstash)** in production, even with a single Render server. The **Socket.IO Redis Adapter** is switched on whenever `REDIS_URL` is set, so every room broadcast and every presence lookup goes through Redis.
 
 ### Current Setup — Single Server + Redis (Render + Upstash)
 
@@ -1303,7 +1303,7 @@ node scripts/seed.js
 
 ## Deployment
 
-StudySync is live with the **frontend on Vercel** and the **backend on Render**.
+Kolo is live with the **frontend on Vercel** and the **backend on Render**.
 
 ```mermaid
 graph TB
